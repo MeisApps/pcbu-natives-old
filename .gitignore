@@ -1,0 +1,11 @@
+.idea
+pam-pcbiounlock/build
+pam-pcbiounlock/cmake-build-debug
+pam-pcbiounlock/cmake-build-release
+pam-pcbiounlock/toolchain
+pam-pcbiounlock/pcbu-auth/build
+pam-pcbiounlock/pcbu-auth/cmake-build-debug
+pam-pcbiounlock/pcbu-auth/cmake-build-release
+win-pcbiounlock/win-pcbiounlock/.vs
+win-pcbiounlock/win-pcbiounlock/x64
+win-pcbiounlock/win-pcbiounlock/test/x64
