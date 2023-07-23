@@ -32,7 +32,7 @@ public:
         std::ofstream file;
         file.open(LOG_FILE, std::ios::app);
         if(!file) {
-            printf("Error: Could not open log file.\n");
+            //printf("%s\n", message.c_str());
             return;
         }
 
