@@ -10,7 +10,11 @@
 #include <algorithm>
 
 #define SHA1_LEN 20
+#ifdef _WIN32
+#define PACKET_TIMEOUT (60000 * 2)
+#else
 #define PACKET_TIMEOUT 30000
+#endif
 
 class CryptUtils {
 public:
