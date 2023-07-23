@@ -177,7 +177,7 @@ HRESULT CMessageCredential::GetBitmapValue(
     HRESULT hr;
     if ((SMFI_TILEIMAGE == dwFieldID) && phbmp)
     {
-        HBITMAP hbmp = (HBITMAP)LoadImage(NULL, L"C:\\ProgramData\\Microsoft\\User Account Pictures\\user.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+        HBITMAP hbmp = (HBITMAP)LoadImageW(NULL, L"C:\\ProgramData\\Microsoft\\User Account Pictures\\user.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
         if (hbmp != NULL)
         {
             hr = S_OK;

@@ -9,3 +9,5 @@ pam-pcbiounlock/pcbu-auth/cmake-build-release
 win-pcbiounlock/win-pcbiounlock/.vs
 win-pcbiounlock/win-pcbiounlock/x64
 win-pcbiounlock/win-pcbiounlock/test/x64
+win-pcbiounlock/win-pcbiounlock/ARM64
+win-pcbiounlock/win-pcbiounlock/test/ARM64

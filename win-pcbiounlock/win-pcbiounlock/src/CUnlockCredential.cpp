@@ -254,7 +254,7 @@ HRESULT CUnlockCredential::GetBitmapValue(DWORD dwFieldID, _Outptr_result_nullon
 
     if ((SFI_TILEIMAGE == dwFieldID))
     {
-        HBITMAP hbmp = (HBITMAP)LoadImage(NULL, L"C:\\ProgramData\\Microsoft\\User Account Pictures\\user.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+        HBITMAP hbmp = (HBITMAP)LoadImageW(NULL, L"C:\\ProgramData\\Microsoft\\User Account Pictures\\user.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
         if (hbmp != NULL)
         {
             hr = S_OK;
@@ -401,7 +401,7 @@ HRESULT CUnlockCredential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIAL
 
     // Check for password or unlock success
     std::wstring pwd;
-    if (_rgFieldStrings[SFI_PASSWORD] && lstrlen(_rgFieldStrings[SFI_PASSWORD]) >= 1)
+    if (_rgFieldStrings[SFI_PASSWORD] && lstrlenW(_rgFieldStrings[SFI_PASSWORD]) >= 1)
     {
         pwd = std::wstring(_rgFieldStrings[SFI_PASSWORD]);
     }
@@ -462,7 +462,7 @@ HRESULT CUnlockCredential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIAL
         DWORD dwAuthFlags = CRED_PACK_PROTECTED_CREDENTIALS | CRED_PACK_ID_PROVIDER_CREDENTIALS;
 
         // First get the size of the authentication buffer to allocate
-        if (!CredPackAuthenticationBuffer(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(pwd.c_str()), nullptr, &pcpcs->cbSerialization) &&
+        if (!CredPackAuthenticationBufferW(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(pwd.c_str()), nullptr, &pcpcs->cbSerialization) &&
             (GetLastError() == ERROR_INSUFFICIENT_BUFFER))
         {
             pcpcs->rgbSerialization = static_cast<byte *>(CoTaskMemAlloc(pcpcs->cbSerialization));
@@ -471,7 +471,7 @@ HRESULT CUnlockCredential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIAL
                 hr = S_OK;
 
                 // Retrieve the authentication buffer
-                if (CredPackAuthenticationBuffer(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(pwd.c_str()), pcpcs->rgbSerialization, &pcpcs->cbSerialization))
+                if (CredPackAuthenticationBufferW(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(pwd.c_str()), pcpcs->rgbSerialization, &pcpcs->cbSerialization))
                 {
                     ULONG ulAuthPackage;
                     hr = RetrieveNegotiateAuthPackage(&ulAuthPackage);

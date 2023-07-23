@@ -98,13 +98,13 @@ extern "C" {
             return nullptr;
         }
 
-        WSAQUERYSET queryset;
-        memset(&queryset, 0, sizeof(WSAQUERYSET));
-        queryset.dwSize = sizeof(WSAQUERYSET);
+        WSAQUERYSETW queryset;
+        memset(&queryset, 0, sizeof(WSAQUERYSETW));
+        queryset.dwSize = sizeof(WSAQUERYSETW);
         queryset.dwNameSpace = NS_BTH;
 
         HANDLE hLookup;
-        result = WSALookupServiceBegin(&queryset, LUP_RETURN_NAME | LUP_CONTAINERS | LUP_RETURN_ADDR | LUP_FLUSHCACHE | LUP_RETURN_TYPE | LUP_RETURN_BLOB | LUP_RES_SERVICE, &hLookup);
+        result = WSALookupServiceBeginW(&queryset, LUP_RETURN_NAME | LUP_CONTAINERS | LUP_RETURN_ADDR | LUP_FLUSHCACHE | LUP_RETURN_TYPE | LUP_RETURN_BLOB | LUP_RES_SERVICE, &hLookup);
         if (result != 0) {
             return nullptr;
         }
@@ -112,7 +112,7 @@ extern "C" {
         BYTE buffer[4096];
         memset(buffer, 0, sizeof(buffer));
         DWORD bufferLength = sizeof(buffer);
-        WSAQUERYSET* pResults = (WSAQUERYSET*)&buffer;
+        WSAQUERYSETW* pResults = (WSAQUERYSETW*)&buffer;
 
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
         auto devicesPtr = (BluetoothDevice*)malloc(sizeof(BluetoothDevice) * DEVICE_LIMIT);
@@ -127,7 +127,7 @@ extern "C" {
             if (idx >= DEVICE_LIMIT)
                 break;
 
-            result = WSALookupServiceNext(hLookup, LUP_RETURN_NAME | LUP_CONTAINERS | LUP_RETURN_ADDR | LUP_FLUSHCACHE | LUP_RETURN_TYPE | LUP_RETURN_BLOB | LUP_RES_SERVICE, &bufferLength, pResults);
+            result = WSALookupServiceNextW(hLookup, LUP_RETURN_NAME | LUP_CONTAINERS | LUP_RETURN_ADDR | LUP_FLUSHCACHE | LUP_RETURN_TYPE | LUP_RETURN_BLOB | LUP_RES_SERVICE, &bufferLength, pResults);
             if (result == 0) {
                 auto pBtAddr = (SOCKADDR_BTH*)(pResults->lpcsaBuffer->RemoteAddr.lpSockaddr);
                 char addr[19] = { 0 };

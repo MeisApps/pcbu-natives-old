@@ -118,6 +118,9 @@
       <Filter>common-cpp</Filter>
     </ClInclude>
     <ClInclude Include="resource.h" />
+    <ClInclude Include="..\..\common-cpp\utils\Utils.h">
+      <Filter>common-cpp</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resources.rc" />

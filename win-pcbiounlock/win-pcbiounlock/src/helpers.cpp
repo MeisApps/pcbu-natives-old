@@ -672,14 +672,14 @@ HRESULT SplitDomainAndUsername(_In_ PCWSTR pszQualifiedUserName, _Outptr_result_
         pszDomain = static_cast<PWSTR>(CoTaskMemAlloc(sizeof(wchar_t) * (lenDomain + 1)));
         if (pszDomain != nullptr)
         {
-            hr = StringCchCopyN(pszDomain, lenDomain + 1, pchDomainBegin, lenDomain);
+            hr = StringCchCopyNW(pszDomain, lenDomain + 1, pchDomainBegin, lenDomain);
             if (SUCCEEDED(hr))
             {
                 size_t lenUsername = pchUsernameEnd - pchUsernameBegin + 1; // number of actual chars, NOT INCLUDING null terminated string
                 pszUsername = static_cast<PWSTR>(CoTaskMemAlloc(sizeof(wchar_t) * (lenUsername + 1)));
                 if (pszUsername != nullptr)
                 {
-                    hr = StringCchCopyN(pszUsername, lenUsername + 1, pchUsernameBegin, lenUsername);
+                    hr = StringCchCopyNW(pszUsername, lenUsername + 1, pchUsernameBegin, lenUsername);
                     if (SUCCEEDED(hr))
                     {
                         *ppszDomain = pszDomain;
