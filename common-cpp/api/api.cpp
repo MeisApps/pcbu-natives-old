@@ -127,7 +127,7 @@ extern "C" {
                 strncpy(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
                 for (auto ifa2 = ifAddrStruct; ifa2 != nullptr; ifa2 = ifa2->ifa_next) {
                     if (ifa2->ifa_addr && ifa2->ifa_addr->sa_family == AF_PACKET && strcmp(ifa->ifa_name, ifa2->ifa_name) == 0) {
-                        auto sll = static_cast<struct sockaddr_ll*>(ifa2->ifa_addr);
+                        auto sll = reinterpret_cast<struct sockaddr_ll*>(ifa2->ifa_addr);
                         snprintf(data->macAddr, sizeof(data->macAddr),
                             "%02X:%02X:%02X:%02X:%02X:%02X",
                             sll->sll_addr[0], sll->sll_addr[1],
