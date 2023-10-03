@@ -27,6 +27,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\common-cpp\api\api.h" />
     <ClInclude Include="..\..\common-cpp\api\bt_api.h" />
     <ClInclude Include="..\..\common-cpp\AppStorage.h" />
     <ClInclude Include="..\..\common-cpp\clients\BTUnlockClient.h" />

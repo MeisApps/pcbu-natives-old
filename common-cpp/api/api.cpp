@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <arpa/inet.h>
+#include <netpacket/packet.h>
 #endif
 
 extern "C" {
@@ -25,12 +26,10 @@ extern "C" {
     API void api_free(void *ptr) {
         if (ptr == nullptr)
             return;
-
         free(ptr);
-        ptr = nullptr;
     }
 
-    API const char *get_local_ip() {
+    API IpAndMac *get_local_ip_and_mac() {
     #ifdef _WIN32
         IP_ADAPTER_ADDRESSES* adapter_addresses(NULL);
         IP_ADAPTER_ADDRESSES* adapter(NULL);
@@ -50,19 +49,15 @@ extern "C" {
                 NULL,
                 adapter_addresses,
                 &adapter_addresses_buffer_size);
-
             if (ERROR_SUCCESS == error) {
                 break;
             } else if (ERROR_BUFFER_OVERFLOW == error) {
-                // Try again with the new size
                 free(adapter_addresses);
                 adapter_addresses = NULL;
                 continue;
             } else {
-                // Unexpected error code - log and throw
                 free(adapter_addresses);
                 adapter_addresses = NULL;
-
                 return nullptr;
             }
         }
@@ -83,38 +78,39 @@ extern "C" {
                     if (!std::regex_match(ifAddr, local_v4_regex))
                         continue;
 
-                    auto addrStr = malloc(sizeof(char) * ifAddr.size() + 1);
-                    if (addrStr == nullptr)
-                        continue;
-
-                    strcpy((char *)addrStr, ifAddr.c_str());
+                    auto data = (IpAndMac *)malloc(sizeof(IpAndMac));
+                    if (data == nullptr)
+                        goto end;
+                    strncpy(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
+                    snprintf(data->macAddr, sizeof(data->macAddr),
+                        "%02X:%02X:%02X:%02X:%02X:%02X",
+                        adapter->PhysicalAddress[0], adapter->PhysicalAddress[1],
+                        adapter->PhysicalAddress[2], adapter->PhysicalAddress[3],
+                        adapter->PhysicalAddress[4], adapter->PhysicalAddress[5]);
 
                     free(adapter_addresses);
                     adapter_addresses = NULL;
-                    return (const char *)addrStr;
+                    return data;
                 } else {
-                    // Skip all other types of addresses
                     continue;
                 }
             }
         }
 
+        end:
         free(adapter_addresses);
         adapter_addresses = NULL;
         return nullptr;
     #else
         struct ifaddrs* ifAddrStruct = nullptr;
-        struct ifaddrs* ifa = nullptr;
-        void* tmpAddrPtr = nullptr;
-
         getifaddrs(&ifAddrStruct);
 
-        for (ifa = ifAddrStruct; ifa != nullptr; ifa = ifa->ifa_next) {
+        for (auto ifa = ifAddrStruct; ifa != nullptr; ifa = ifa->ifa_next) {
             if (!ifa->ifa_addr || ifa->ifa_flags & IFF_LOOPBACK)
                 continue;
 
             if (ifa->ifa_addr->sa_family == AF_INET) { // IPv4
-                tmpAddrPtr = &((struct sockaddr_in*)ifa->ifa_addr)->sin_addr;
+                void *tmpAddrPtr = &((struct sockaddr_in*)ifa->ifa_addr)->sin_addr;
                 char addressBuffer[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
 
@@ -125,22 +121,31 @@ extern "C" {
                 if (!std::regex_match(ifAddr, local_v4_regex))
                     continue;
 
-                auto addrStr = malloc(sizeof(char) * ifAddr.size() + 1);
-                strcpy((char *)addrStr, ifAddr.c_str());
-                return (const char *)addrStr;
+                auto data = (IpAndMac *)malloc(sizeof(IpAndMac));
+                if (data == nullptr)
+                    goto end;
+                strncpy(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
+                for (auto ifa2 = ifAddrStruct; ifa2 != nullptr; ifa2 = ifa2->ifa_next) {
+                    if (ifa2->ifa_addr && ifa2->ifa_addr->sa_family == AF_PACKET && strcmp(ifa->ifa_name, ifa2->ifa_name) == 0) {
+                        auto sll = static_cast<struct sockaddr_ll*>(ifa2->ifa_addr);
+                        snprintf(data->macAddr, sizeof(data->macAddr),
+                            "%02X:%02X:%02X:%02X:%02X:%02X",
+                            sll->sll_addr[0], sll->sll_addr[1],
+                            sll->sll_addr[2], sll->sll_addr[3],
+                            sll->sll_addr[4], sll->sll_addr[5]);
+                        break;
+                    }
+                }
+
+                freeifaddrs(ifAddrStruct);
+                return data;
             }
-            else if (ifa->ifa_addr->sa_family == AF_INET6) { // IPv6
-                // is a valid IP6 Address
-                /*tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
-                char addressBuffer[INET6_ADDRSTRLEN];
-                inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
-                printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer);*/
-            }
+            else if (ifa->ifa_addr->sa_family == AF_INET6) {} // IPv6
         }
 
+        end:
         if (ifAddrStruct != nullptr)
             freeifaddrs(ifAddrStruct);
-
         return nullptr;
     #endif
     }

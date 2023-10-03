@@ -8,9 +8,14 @@
 #endif
 
 extern "C" {
+    struct IpAndMac {
+        char ipAddr[16]{};
+        char macAddr[18]{};
+    };
+
     API void api_free(void *ptr);
 
-    API const char *get_local_ip();
+    API IpAndMac *get_local_ip_and_mac();
     API const char *crypt_shadow(char *pwd, char *salt);
 }
 

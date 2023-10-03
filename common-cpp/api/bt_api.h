@@ -5,8 +5,8 @@
 
 extern "C" {
     struct BluetoothDevice {
-        char name[255];
-        char address[19];
+        char name[255]{};
+        char address[18]{};
     };
 
     API bool bt_is_available();

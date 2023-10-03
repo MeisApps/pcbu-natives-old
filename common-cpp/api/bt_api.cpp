@@ -130,14 +130,14 @@ extern "C" {
             result = WSALookupServiceNextW(hLookup, LUP_RETURN_NAME | LUP_CONTAINERS | LUP_RETURN_ADDR | LUP_FLUSHCACHE | LUP_RETURN_TYPE | LUP_RETURN_BLOB | LUP_RES_SERVICE, &bufferLength, pResults);
             if (result == 0) {
                 auto pBtAddr = (SOCKADDR_BTH*)(pResults->lpcsaBuffer->RemoteAddr.lpSockaddr);
-                char addr[19] = { 0 };
+                char addr[18] = { 0 };
                 ba2str(pBtAddr->btAddr, addr);
 
                 auto name = converter.to_bytes(pResults->lpszServiceInstanceName);
                 auto address = std::string(addr);
 
                 strcpy_s(devicesPtr[idx].name, 255, name.c_str());
-                strcpy_s(devicesPtr[idx].address, 19, address.c_str());
+                strcpy_s(devicesPtr[idx].address, 18, address.c_str());
                 idx++;
             }
         }
@@ -150,7 +150,7 @@ extern "C" {
         int max_rsp, num_rsp;
         int dev_id, sock, len, flags;
         int i;
-        char addr[19] = { 0 };
+        char addr[18] = { 0 };
         char name[248] = { 0 };
 
         dev_id = hci_get_route(nullptr);
