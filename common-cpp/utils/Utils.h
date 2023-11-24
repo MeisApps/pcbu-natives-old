@@ -82,6 +82,11 @@ public:
         return value.rfind(beginning, 0) == 0;
     }
 
+    static bool StringStartsWith(std::wstring const& value, std::wstring const& beginning) {
+        if (beginning.size() > value.size()) return false;
+        return value.rfind(beginning, 0) == 0;
+    }
+
     static bool StringEndsWith(std::string const &value, std::string const &ending) {
         if (ending.size() > value.size()) return false;
         return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
