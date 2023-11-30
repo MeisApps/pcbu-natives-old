@@ -69,6 +69,10 @@ extern "C" {
                 continue;
 
             auto ifName = std::wstring(adapter->FriendlyName);
+            for (const auto& filterStart : filterAdapterNames)
+                if (Utils::StringStartsWith(ifName, filterStart))
+                    goto adapterEnd;
+
             for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; NULL != address; address = address->Next) {
                 auto family = address->Address.lpSockaddr->sa_family;
                 if (AF_INET == family) { // IPv4
@@ -79,9 +83,6 @@ extern "C" {
                     auto ifAddr = std::string(str_buffer);
                     if (!std::regex_match(ifAddr, local_v4_regex))
                         continue;
-                    for (const auto& filterStart : filterAdapterNames)
-                        if (Utils::StringStartsWith(ifName, filterStart))
-                            continue;
 
                     auto data = (IpAndMac *)malloc(sizeof(IpAndMac));
                     if (data == nullptr)
@@ -96,10 +97,10 @@ extern "C" {
                     free(adapter_addresses);
                     adapter_addresses = NULL;
                     return data;
-                } else {
-                    continue;
                 }
             }
+            adapterEnd:
+            continue;
         }
 
         end:
