@@ -1,5 +1,5 @@
 #include <string>
-#include "pstream.h"
+#include "deps/pstream.h"
 
 #define PAM_SM_AUTH
 #include <security/pam_modules.h>

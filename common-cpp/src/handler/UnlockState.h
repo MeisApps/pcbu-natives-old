@@ -1,0 +1,19 @@
+#ifndef PAM_PCBIOUNLOCK_UNLOCKSTATE_H
+#define PAM_PCBIOUNLOCK_UNLOCKSTATE_H
+
+#include <string>
+
+enum UnlockState {
+    UNKNOWN = 0,
+    SUCCESS = 1,
+    CANCELED = 2,
+    TIMEOUT = 3,
+    CONNECT_ERROR = 4,
+    TIME_ERROR = 5,
+    DATA_ERROR = 6,
+    NOT_PAIRED_ERROR = 7,
+    APP_ERROR = 8,
+    UNK_ERROR = 9
+};
+
+#endif //PAM_PCBIOUNLOCK_UNLOCKSTATE_H
