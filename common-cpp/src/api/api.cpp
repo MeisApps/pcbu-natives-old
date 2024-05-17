@@ -33,6 +33,7 @@ extern "C" {
     #ifdef _WIN32
         IP_ADAPTER_ADDRESSES* adapter_addresses(NULL);
         IP_ADAPTER_ADDRESSES* adapter(NULL);
+        std::vector<std::wstring> filterAdapterNames = { L"vEthernet (WSL", L"VMware Network Adapter", L"VirtualBox" };
 
         DWORD adapter_addresses_buffer_size = 16 * 1024;
         for (int attempts = 0; attempts != 3; ++attempts) {
@@ -67,6 +68,11 @@ extern "C" {
             if (IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
                 continue;
 
+            auto ifName = std::wstring(adapter->FriendlyName);
+            for (const auto& filterStart : filterAdapterNames)
+                if (Utils::StringStartsWith(ifName, filterStart))
+                    goto adapterEnd;
+
             for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; NULL != address; address = address->Next) {
                 auto family = address->Address.lpSockaddr->sa_family;
                 if (AF_INET == family) { // IPv4
@@ -91,10 +97,10 @@ extern "C" {
                     free(adapter_addresses);
                     adapter_addresses = NULL;
                     return data;
-                } else {
-                    continue;
                 }
             }
+            adapterEnd:
+            continue;
         }
 
         end:

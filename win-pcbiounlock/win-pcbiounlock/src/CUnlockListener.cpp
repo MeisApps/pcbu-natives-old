@@ -8,6 +8,8 @@
 #include "I18n.h"
 
 #include "handler/UnlockHandler.h"
+#include <SensAPI.h>
+#pragma comment(lib, "SensAPI.lib")
 
 void CUnlockListener::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider* pCredProv, CMessageCredential* pMessageCredential)
 {
@@ -56,9 +58,20 @@ void CUnlockListener::ListenThread()
     }
 
     // Wait
-    if (m_ProviderUsage == CPUS_LOGON || m_ProviderUsage == CPUS_UNLOCK_WORKSTATION)
-    {
-        // Key listener
+    auto useBluetooth = !pairedDevice.value().bluetoothAddress.empty();
+    if (m_ProviderUsage == CPUS_LOGON || m_ProviderUsage == CPUS_UNLOCK_WORKSTATION) {
+        // Network
+        if (!useBluetooth) {
+            m_MessageCred->UpdateMessage(I18n::Get("wait_network"));
+            while (true) {
+                DWORD flags{};
+                if (IsNetworkAlive(&flags) && GetLastError() == 0 || GetAsyncKeyState(VK_LCONTROL) < 0 && GetAsyncKeyState(VK_LMENU) < 0)
+                    break;
+                Sleep(10);
+            }
+        }
+
+        // Key press
         Sleep(500);
         m_MessageCred->UpdateMessage(I18n::Get("wait_key_press"));
 
