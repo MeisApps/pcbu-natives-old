@@ -93,28 +93,7 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server) {
 
     server->Stop();
     keyScanner.Stop();
-
-    if(state == UnlockState::SUCCESS) {
-        m_PrintMessage(I18n::Get("unlock_success"));
-    } else if(state == UnlockState::CANCELED) {
-        m_PrintMessage(I18n::Get("unlock_canceled"));
-    } else if(state == UnlockState::TIMEOUT) {
-        m_PrintMessage(I18n::Get("unlock_timeout"));
-    } else if(state == UnlockState::CONNECT_ERROR) {
-        m_PrintMessage(I18n::Get("unlock_error_connect"));
-    } else if(state == UnlockState::TIME_ERROR) {
-        m_PrintMessage(I18n::Get("unlock_error_time"));
-    } else if(state == UnlockState::DATA_ERROR) {
-        m_PrintMessage(I18n::Get("unlock_error_data"));
-    } else if(state == UnlockState::NOT_PAIRED_ERROR) {
-        m_PrintMessage(I18n::Get("unlock_error_not_paired"));
-    } else if(state == UnlockState::APP_ERROR) {
-        m_PrintMessage(I18n::Get("unlock_error_app"));
-    } else if(state == UnlockState::UNK_ERROR) {
-        m_PrintMessage(I18n::Get("unlock_error_unknown"));
-    } else {
-        m_PrintMessage(I18n::Get("error_unknown"));
-    }
+    m_PrintMessage(UnlockStateUtils::ToString(state));
 
     auto result = UnlockResult();
     result.state = state;

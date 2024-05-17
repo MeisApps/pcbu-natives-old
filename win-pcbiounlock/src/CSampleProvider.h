@@ -19,8 +19,7 @@
 #include "CUnlockCredential.h"
 #include "CMessageCredential.h"
 #include "CUnlockListener.h"
-
-#include "UnlockState.h"
+#include "handler/UnlockHandler.h"
 
 class CSampleProvider : public ICredentialProvider,
                         public ICredentialProviderSetUserArray
@@ -74,7 +73,7 @@ class CSampleProvider : public ICredentialProvider,
     friend HRESULT CSample_CreateInstance(_In_ REFIID riid, _Outptr_ void** ppv);
 
   public:
-    void OnStatusChanged(UnlockState state, std::string additionalData);
+    void OnStatusChanged(const UnlockResult& result);
 
   protected:
     CSampleProvider();

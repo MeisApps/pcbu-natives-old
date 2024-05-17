@@ -1,6 +1,3 @@
-// Test.cpp : Diese Datei enthält die Funktion "main". Hier beginnt und endet die Ausführung des Programms.
-//
-
 #include <iostream>
 #include <Windows.h>
 #include <WinCred.h>
@@ -16,16 +13,16 @@ int main()
     DWORD authPackage = 0;
     LPVOID authBuffer;
     ULONG authBufferSize = 0;
-    CREDUI_INFO credUiInfo;
+    CREDUI_INFOW credUiInfo;
 
-    credUiInfo.pszCaptionText = TEXT("VBoxCaption");
-    credUiInfo.pszMessageText = TEXT("VBoxMessage");
+    credUiInfo.pszCaptionText = L"VBoxCaption";
+    credUiInfo.pszMessageText = L"VBoxMessage";
     credUiInfo.cbSize = sizeof(credUiInfo);
-    credUiInfo.hbmBanner = NULL;
-    credUiInfo.hwndParent = NULL;
+    credUiInfo.hbmBanner = nullptr;
+    credUiInfo.hwndParent = nullptr;
 
     DWORD rc = CredUIPromptForWindowsCredentialsW(&(credUiInfo), 0, &(authPackage),
-        NULL, 0, &authBuffer, &authBufferSize, &(save), 0);
+        nullptr, 0, &authBuffer, &authBufferSize, &(save), 0);
     printf("Test returned %ld\n", rc);
     return rc;
 }

@@ -24,7 +24,8 @@ public:
     static std::string GetRandomString(size_t length);
 
     static std::vector<std::string> SplitString(const std::string& s, char seperator);
-    static bool StringStartsWith(std::string const &value, std::string const &beginning);
+    static bool StringStartsWith(std::string const& value, std::string const& beginning);
+    static bool StringStartsWith(std::wstring const& value, std::wstring const& beginning);
     static bool StringEndsWith(std::string const &value, std::string const &ending);
     static std::string ToHexString(const uint8_t *data, size_t data_len);
 

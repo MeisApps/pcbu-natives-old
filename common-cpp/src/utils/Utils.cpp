@@ -66,6 +66,11 @@ bool Utils::StringStartsWith(std::string const &value, std::string const &beginn
     return value.rfind(beginning, 0) == 0;
 }
 
+bool Utils::StringStartsWith(std::wstring const& value, std::wstring const& beginning) {
+    if (beginning.size() > value.size()) return false;
+    return value.rfind(beginning, 0) == 0;
+}
+
 bool Utils::StringEndsWith(std::string const &value, std::string const &ending) {
     if (ending.size() > value.size()) return false;
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());

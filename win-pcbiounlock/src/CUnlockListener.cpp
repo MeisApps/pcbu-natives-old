@@ -3,25 +3,26 @@
 #include "CSampleProvider.h"
 #include "CMessageCredential.h"
 
-#include "AppStorage.h"
-#include "FCMUtils.h"
+#include "storage/AppStorage.h"
 #include "I18n.h"
 
 #include "handler/UnlockHandler.h"
 #include <SensAPI.h>
 #pragma comment(lib, "SensAPI.lib")
 
-void CUnlockListener::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider* pCredProv, CMessageCredential* pMessageCredential)
+void CUnlockListener::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider* pCredProv, CMessageCredential* pMessageCredential, const std::string& userDomain)
 {
     m_ProviderUsage = cpus;
     m_CredProv = pCredProv;
     m_MessageCred = pMessageCredential;
+    m_UserDomain = userDomain;
     m_ListenThread = std::thread(&CUnlockListener::ListenThread, this);
 }
 
 void CUnlockListener::Release()
 {
-
+    if(m_ListenThread.joinable())
+        m_ListenThread.join();
 }
 
 bool CUnlockListener::HasResponse()
@@ -44,24 +45,21 @@ void GetAllKeyState(byte* keys, size_t len)
 void CUnlockListener::ListenThread()
 {
     // Init
-    auto pairedDevice = PairedDeviceStorage::GetDeviceData();
-    if (pairedDevice == std::nullopt) {
-        m_MessageCred->UpdateMessage(I18n::Get("error_not_paired"));
-        return;
-    }
-
-    auto userDomain = pairedDevice.value().userName;
-    auto userSplit = Utils::SplitString(userDomain, '\\');
+    auto userSplit = Utils::SplitString(m_UserDomain, '\\');
     if (userSplit.size() != 2) {
         m_MessageCred->UpdateMessage(I18n::Get("error_invalid_user"));
         return;
     }
 
     // Wait
-    auto useBluetooth = !pairedDevice.value().bluetoothAddress.empty();
+    auto devices = PairedDeviceStorage::GetDevices();
+    auto waitForNetwork = std::any_of(devices.begin(), devices.end(), [](const PairedDevice& device)
+    {
+        return device.pairingMethod == PairingMethod::TCP || device.pairingMethod == PairingMethod::CLOUD_TCP;
+    });
     if (m_ProviderUsage == CPUS_LOGON || m_ProviderUsage == CPUS_UNLOCK_WORKSTATION) {
         // Network
-        if (!useBluetooth) {
+        if (waitForNetwork) {
             m_MessageCred->UpdateMessage(I18n::Get("wait_network"));
             while (true) {
                 DWORD flags{};
@@ -94,8 +92,8 @@ void CUnlockListener::ListenThread()
     };
 
     auto handler = UnlockHandler(printMessage);
-    auto result = handler.GetResult(pairedDevice.value(), userSplit[1], "Windows-Login");
+    auto result = handler.GetResult(m_UserDomain, "Windows-Login");
 
     m_HasResponse = true;
-    m_CredProv->OnStatusChanged(result.state, result.additionalData);
+    m_CredProv->OnStatusChanged(result);
 }

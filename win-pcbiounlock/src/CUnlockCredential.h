@@ -26,8 +26,7 @@
 #include "common.h"
 #include "dll.h"
 #include "resource.h"
-
-#include "UnlockState.h"
+#include "handler/UnlockHandler.h"
 
 class CUnlockCredential : public ICredentialProviderCredential2, ICredentialProviderCredentialWithFieldOptions
 {
@@ -107,7 +106,7 @@ public:
                        _In_ ICredentialProviderUser *pcpUser);
     CUnlockCredential();
 
-    void SetUnlockData(UnlockState state, std::string password = "");
+    void SetUnlockData(const UnlockResult& result);
 
   private:
 
@@ -125,7 +124,5 @@ public:
     DWORD                                   _dwComboIndex;                                  // Tracks the current index of our combobox.
     bool                                    _fShowControls;                                 // Tracks the state of our show/hide controls link.
     bool                                    _fIsLocalUser;                                  // If the cred prov is assosiating with a local user tile
-
-    UnlockState _unlockState;
-    std::string _password;
+    UnlockResult _unlockResult;
 };

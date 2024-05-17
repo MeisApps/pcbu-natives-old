@@ -25,8 +25,7 @@ CUnlockCredential::CUnlockCredential():
     _fChecked(false),
     _fShowControls(false),
     _dwComboIndex(0),
-    _unlockState(UnlockState::UNKNOWN),
-    _password("")
+    _unlockResult(UnlockState::UNKNOWN)
 {
     DllAddRef();
 
@@ -115,27 +114,10 @@ HRESULT CUnlockCredential::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
     return hr;
 }
 
-void CUnlockCredential::SetUnlockData(UnlockState state, std::string password)
+void CUnlockCredential::SetUnlockData(const UnlockResult& result)
 {
-    _unlockState = state;
-    _password = password;
-
-    auto message = I18n::Get("enter_password");
-    switch (_unlockState)
-    {
-    case UnlockState::CONNECT_ERROR:
-        message = I18n::Get("error_connect");
-        break;
-    case UnlockState::TIMEOUT:
-        message = I18n::Get("unlock_timeout");
-        break;
-    case UnlockState::CANCELED:
-        message = I18n::Get("unlock_canceled");
-        break;
-    default:
-        break;
-    }
-
+    _unlockResult = result;
+    auto message = UnlockStateUtils::ToString(_unlockResult.state);
     SHStrDupW(WinUtils::StringToWideString(message).c_str(), &(_rgFieldStrings[SFI_MESSAGE]));
     if (_pCredProvCredentialEvents) {
         _pCredProvCredentialEvents->SetFieldString(this, SFI_MESSAGE, _rgFieldStrings[SFI_MESSAGE]);
@@ -176,7 +158,7 @@ HRESULT CUnlockCredential::UnAdvise()
 // selected, you would do it here.
 HRESULT CUnlockCredential::SetSelected(_Out_ BOOL *pbAutoLogon)
 {
-    *pbAutoLogon = _unlockState == UnlockState::SUCCESS;
+    *pbAutoLogon = _unlockResult.state == UnlockState::SUCCESS;
     return S_OK;
 }
 
@@ -405,9 +387,9 @@ HRESULT CUnlockCredential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIAL
     {
         pwd = std::wstring(_rgFieldStrings[SFI_PASSWORD]);
     }
-    else if (_unlockState == UnlockState::SUCCESS)
+    else if (_unlockResult.state == UnlockState::SUCCESS)
     {
-        pwd = WinUtils::StringToWideString(_password);
+        pwd = WinUtils::StringToWideString(_unlockResult.password);
     }
     else
     {
@@ -536,9 +518,7 @@ HRESULT CUnlockCredential::ReportResult(NTSTATUS ntsStatus,
     *ppwszOptionalStatusText = nullptr;
     *pcpsiOptionalStatusIcon = CPSI_NONE;
 
-    _unlockState = UnlockState::UNKNOWN;
-    _password = "";
-
+    _unlockResult = UnlockResult(UnlockState::UNKNOWN);
     DWORD dwStatusInfo = (DWORD)-1;
 
     // Look for a match on status and substatus.

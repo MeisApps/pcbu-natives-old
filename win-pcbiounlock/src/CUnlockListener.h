@@ -11,7 +11,7 @@ class CUnlockListener
 {
 public:
 	CUnlockListener() = default;
-	void Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider *pCredProv, CMessageCredential *pMessageCredential);
+	void Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider *pCredProv, CMessageCredential *pMessageCredential, const std::string& userDomain);
 	void Release();
 
 	bool HasResponse();
@@ -25,4 +25,5 @@ private:
 	CREDENTIAL_PROVIDER_USAGE_SCENARIO m_ProviderUsage;
 	CSampleProvider* m_CredProv;
 	CMessageCredential* m_MessageCred;
+	std::string m_UserDomain;
 };

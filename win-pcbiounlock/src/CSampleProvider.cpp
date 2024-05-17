@@ -16,7 +16,7 @@
 #include "CUnlockCredential.h"
 #include "guid.h"
 
-#include "handler/PairedDevice.h"
+#include "storage/PairedDevice.h"
 #include "WinUtils.h"
 
 CSampleProvider::CSampleProvider() :
@@ -54,11 +54,11 @@ CSampleProvider::~CSampleProvider()
     DllRelease();
 }
 
-void CSampleProvider::OnStatusChanged(UnlockState state, std::string additionalData)
+void CSampleProvider::OnStatusChanged(const UnlockResult& result)
 {
     if (_pCredential != nullptr)
     {
-        _pCredential->SetUnlockData(state, additionalData);
+        _pCredential->SetUnlockData(result);
     }
     if (_pCredProvEvents != nullptr)
     {
@@ -324,87 +324,83 @@ HRESULT CSampleProvider::_EnumerateCredentials()
         _pCredProviderUserArray->GetCount(&dwUserCount);
         if (dwUserCount > 0)
         {
-            auto pairedDevice = PairedDeviceStorage::GetDeviceData();
-            if (pairedDevice.has_value())
+            const auto devices = PairedDeviceStorage::GetDevices();
+            ICredentialProviderUser* pPairedUser = nullptr;
+            std::string pairedUserDomain{};
+            for (DWORD i = 0; i < dwUserCount; i++)
             {
-                ICredentialProviderUser* pPairedUser = nullptr;
-                for (DWORD i = 0; i < dwUserCount; i++)
+                ICredentialProviderUser* pCredUser;
+                hr = _pCredProviderUserArray->GetAt(i, &pCredUser);
+                if (SUCCEEDED(hr))
                 {
-                    ICredentialProviderUser* pCredUser;
-                    hr = _pCredProviderUserArray->GetAt(i, &pCredUser);
-
+                    PWSTR userDomain{};
+                    hr = pCredUser->GetStringValue(PKEY_Identity_QualifiedUserName, &userDomain);
                     if (SUCCEEDED(hr))
                     {
-                        PWSTR userDomain;
-                        hr = pCredUser->GetStringValue(PKEY_Identity_QualifiedUserName, &userDomain);
-                        if (SUCCEEDED(hr))
+                        auto userDomainStr = WinUtils::WideStringToString(std::wstring(userDomain));
+                        for(const auto& device : devices)
                         {
-                            auto userDomainStr = WinUtils::WideStringToString(std::wstring(userDomain));
-                            if (userDomainStr == pairedDevice.value().userName)
+                            if (userDomainStr == device.userName) // ToDo?
                             {
                                 pPairedUser = pCredUser;
+                                pairedUserDomain = userDomainStr;
                                 break;
                             }
                         }
                     }
                 }
+            }
 
-                if (pPairedUser != nullptr)
+            if (pPairedUser != nullptr)
+            {
+                _pCredential = new(std::nothrow) CUnlockCredential();
+                if (_pCredential != nullptr)
                 {
-                    _pCredential = new(std::nothrow) CUnlockCredential();
-                    if (_pCredential != nullptr)
+                    hr = _pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, pPairedUser);
+                    if (FAILED(hr))
                     {
-                        hr = _pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, pPairedUser);
-                        if (FAILED(hr))
+                        _pCredential->Release();
+                        _pCredential = nullptr;
+                    }
+                    else if (SUCCEEDED(hr))
+                    {
+                        _pMessageCredential = new(std::nothrow) CMessageCredential();
+                        if (_pMessageCredential != nullptr)
                         {
-                            _pCredential->Release();
-                            _pCredential = nullptr;
-                        }
-                        else if (SUCCEEDED(hr))
-                        {
-                            _pMessageCredential = new(std::nothrow) CMessageCredential();
-                            if (_pMessageCredential != nullptr)
+                            hr = _pMessageCredential->Initialize(_cpus, s_rgMessageCredProvFieldDescriptors, s_rgMessageFieldStatePairs, pPairedUser);
+                            if (FAILED(hr))
                             {
-                                hr = _pMessageCredential->Initialize(_cpus, s_rgMessageCredProvFieldDescriptors, s_rgMessageFieldStatePairs, pPairedUser);
-                                if (FAILED(hr))
+                                _pMessageCredential->Release();
+                                _pMessageCredential = nullptr;
+                            }
+                            else if (SUCCEEDED(hr)) {
+                                _pUnlockListener = new(std::nothrow) CUnlockListener();
+                                if (_pUnlockListener != nullptr)
                                 {
-                                    _pMessageCredential->Release();
-                                    _pMessageCredential = nullptr;
+                                    _pUnlockListener->Initialize(_cpus, this, _pMessageCredential, pairedUserDomain);
                                 }
-                                else if (SUCCEEDED(hr)) {
-                                    _pUnlockListener = new(std::nothrow) CUnlockListener();
-                                    if (_pUnlockListener != nullptr)
-                                    {
-                                        _pUnlockListener->Initialize(_cpus, this, _pMessageCredential);
-                                    }
-                                    else
-                                    {
-                                        hr = E_OUTOFMEMORY;
-                                    }
+                                else
+                                {
+                                    hr = E_OUTOFMEMORY;
                                 }
-                            }
-                            else
-                            {
-                                hr = E_OUTOFMEMORY;
                             }
                         }
+                        else
+                        {
+                            hr = E_OUTOFMEMORY;
+                        }
                     }
-                    else
-                    {
-                        hr = E_OUTOFMEMORY;
-                    }
-
-                    pPairedUser->Release();
                 }
                 else
                 {
-                    hr = E_ABORT;
-                    Logger::writeln("Could not find paired user.");
+                    hr = E_OUTOFMEMORY;
                 }
+                pPairedUser->Release();
             }
             else
             {
                 hr = E_ABORT;
+                Logger::writeln("Could not find paired user.");
             }
         }
     }
