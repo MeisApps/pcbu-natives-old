@@ -75,6 +75,9 @@ void BaseUnlockServer::OnResponseReceived(uint8_t *buffer, size_t buffer_size) {
         } else if(respStr == "ERROR") {
             m_UnlockState = UnlockState::APP_ERROR;
             return;
+        } else if(respStr == "TIME_ERROR") {
+            m_UnlockState = UnlockState::TIME_ERROR;
+            return;
         }
 
         switch (cryptResult) {
