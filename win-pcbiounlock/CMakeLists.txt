@@ -2,11 +2,14 @@ cmake_minimum_required(VERSION 3.14)
 
 project(win-pcbiounlock)
 set(CMAKE_CXX_STANDARD 17)
+
 message("-- Building for arch '${CMAKE_VS_PLATFORM_NAME}'")
+set(OPENSSL_ROOT_DIR "C:/Program Files/OpenSSL-Win64")
+#set(OPENSSL_ROOT_DIR "C:/Program Files/OpenSSL-Win64-ARM")
 
 if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
     set(OPENSSL_ROOT_DIR "C:/Program Files/OpenSSL-Win64")
-else()
+elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "ARM64")
     set(OPENSSL_ROOT_DIR "C:/Program Files/OpenSSL-Win64-ARM")
 endif()
 
@@ -15,25 +18,25 @@ add_subdirectory(common-cpp/deps/spdlog)
 
 add_compile_definitions(_WIN32 WIN32 SAMPLEV2CREDENTIALPROVIDER_EXPORTS _WINDOWS _USRDLL UNICODE _UNICODE)
 add_library(win-pcbiounlock SHARED
-        "resource.h"
-        "win-pcbiounlock.def"
-        "src/CMessageCredential.h"
-        "src/common.h"
-        "src/CSampleProvider.h"
-        "src/CUnlockCredential.h"
-        "src/CUnlockListener.h"
-        "src/Dll.h"
-        "src/guid.h"
-        "src/helpers.h"
-        "src/resource.h"
-        "src/WinUtils.h"
-        "src/CMessageCredential.cpp"
-        "src/CSampleProvider.cpp"
-        "src/CUnlockCredential.cpp"
-        "src/CUnlockListener.cpp"
-        "src/Dll.cpp"
-        "src/guid.cpp"
-        "src/helpers.cpp"
+        resource.h
+        win-pcbiounlock.def
+        src/CMessageCredential.h
+        src/common.h
+        src/CSampleProvider.h
+        src/CUnlockCredential.h
+        src/CUnlockListener.h
+        src/Dll.h
+        src/guid.h
+        src/helpers.h
+        src/resource.h
+        src/WinUtils.h
+        src/CMessageCredential.cpp
+        src/CSampleProvider.cpp
+        src/CUnlockCredential.cpp
+        src/CUnlockListener.cpp
+        src/Dll.cpp
+        src/guid.cpp
+        src/helpers.cpp
 
         common-cpp/src/api/api.h
         common-cpp/src/api/api.cpp
@@ -74,4 +77,4 @@ add_library(win-pcbiounlock SHARED
 )
 
 target_include_directories(win-pcbiounlock PUBLIC common-cpp/src common-cpp/deps/headers common-cpp/deps/spdlog/include)
-target_link_libraries(win-pcbiounlock PUBLIC Credui Shlwapi Secur32 Ws2_32 spdlog::spdlog OpenSSL::Crypto OpenSSL::SSL)
+target_link_libraries(win-pcbiounlock PUBLIC Credui Shlwapi Secur32 Ws2_32 Bthprops spdlog::spdlog OpenSSL::Crypto OpenSSL::SSL)

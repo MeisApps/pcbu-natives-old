@@ -11,6 +11,8 @@ extern "C" {
 
     API bool bt_is_available();
     API BluetoothDevice *bt_scan_devices(int *count);
+    API BluetoothDevice *bt_get_paired_devices(int *count);
+    API bool bt_pair_device(BluetoothDevice *device);
 }
 
 #endif //PAM_PCBIOUNLOCK_BT_API_H
