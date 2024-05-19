@@ -2,6 +2,7 @@
 #define PAM_PCBIOUNLOCK_UNLOCKHANDLER_H
 
 #include <functional>
+#include <future>
 #include <string>
 
 #include "UnlockState.h"
@@ -26,7 +27,7 @@ public:
 
     const UnlockResult RESULT_ERROR = UnlockResult(UnlockState::UNKNOWN);
 private:
-    UnlockResult RunServer(BaseUnlockServer *server);
+    UnlockResult RunServer(BaseUnlockServer *server, const std::shared_future<UnlockResult>& future);
 
     std::function<void (std::string)> m_PrintMessage;
 };

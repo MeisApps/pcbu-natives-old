@@ -6,6 +6,7 @@
 
 #define read(x,y,z) recv(x, (char*)y, z, 0)
 #define write(x,y,z) send(x, y, z, 0)
+#define SOCKET_INVALID INVALID_SOCKET
 #define SAFE_CLOSE(x) if(x != (SOCKET)-1) { closesocket(x); x = (SOCKET)-1; }
 #else
 #include <unistd.h>
@@ -13,6 +14,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#define SOCKET_INVALID -1
 #define SAFE_CLOSE(x) if(x != -1) { close(x); x = -1; }
 #endif
 
@@ -29,11 +31,8 @@ bool TCPUnlockClient::Start() {
         return true;
 
 #ifdef _WIN32
-    WSADATA wsa;
-    memset(&wsa, 0, sizeof(wsa));
-
-    int error = WSAStartup(MAKEWORD(2, 2), &wsa);
-    if (error != 0) {
+    WSADATA wsa{};
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         Logger::writeln("WSAStartup failed.");
         return false;
     }
@@ -70,7 +69,7 @@ void TCPUnlockClient::ConnectThread() {
         return;
     }
 
-    if ((m_ClientSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((m_ClientSocket = socket(AF_INET, SOCK_STREAM, 0)) == SOCKET_INVALID) {
         Logger::writeln("socket failed.");
         m_IsRunning = false;
         m_UnlockState = UnlockState::UNK_ERROR;
@@ -90,9 +89,12 @@ void TCPUnlockClient::ConnectThread() {
         write(m_ClientSocket, serverDataStr.c_str(), (int)serverDataStr.size());
 
         // Read response
-        char buffer[1024] = { 0 }; // ToDo
-        long bytesRead = read(m_ClientSocket, buffer, sizeof(buffer));
-        OnResponseReceived((uint8_t *)buffer, bytesRead);
+        char buffer[1024]{};
+        long bytesRead{};
+        std::vector<uint8_t> readData{};
+        while((bytesRead = read(m_ClientSocket, buffer, sizeof(buffer))) > 0)
+            readData.insert(readData.end(), buffer, buffer + bytesRead);
+        OnResponseReceived(readData.data(), readData.size());
     } else {
         Logger::writeln("Connect failed.");
         m_UnlockState = UnlockState::CONNECT_ERROR;

@@ -87,7 +87,7 @@ void CUnlockListener::ListenThread()
     }
 
     // Unlock
-    std::function<void(const std::string&)> printMessage = [this](const std::string& s) {
+    std::function printMessage = [this](const std::string& s) {
         m_MessageCred->UpdateMessage(s);
     };
 

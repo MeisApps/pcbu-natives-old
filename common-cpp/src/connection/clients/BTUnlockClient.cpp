@@ -10,6 +10,7 @@
 #define BTPROTO_RFCOMM BTHPROTO_RFCOMM
 #define read(x,y,z) recv(x, (char*)y, z, 0)
 #define write(x,y,z) send(x, y, z, 0)
+#define SOCKET_INVALID INVALID_SOCKET
 #define SAFE_CLOSE(x) if(x != (SOCKET)-1) { closesocket(x); x = (SOCKET)-1; }
 #endif
 #ifdef LINUX
@@ -18,6 +19,7 @@
 #include <bluetooth/rfcomm.h>
 #include <sys/socket.h>
 
+#define SOCKET_INVALID -1
 #define SAFE_CLOSE(x) if(x != -1) { close(x); x = -1; }
 #endif
 
@@ -34,11 +36,8 @@ bool BTUnlockClient::Start() {
         return true;
 
 #ifdef _WIN32
-    WSADATA wsa;
-    memset(&wsa, 0, sizeof(wsa));
-
-    int error = WSAStartup(MAKEWORD(2, 2), &wsa);
-    if (error != 0) {
+    WSADATA wsa{};
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         Logger::writeln("WSAStartup failed.");
         return false;
     }
@@ -77,7 +76,7 @@ void BTUnlockClient::ConnectThread() {
     }
 #endif
     m_ClientSocket = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
-    if(m_ClientSocket < 0) {
+    if(m_ClientSocket == SOCKET_INVALID) {
         Logger::writeln("Bluetooth socket failed.");
         m_IsRunning = false;
         m_UnlockState = UnlockState::UNK_ERROR;
@@ -89,8 +88,7 @@ void BTUnlockClient::ConnectThread() {
     BTH_ADDR addr;
     BTUtils::str2ba2(m_DeviceAddress.c_str(), &addr);
 
-    SOCKADDR_BTH address;
-    memset(&address, 0, sizeof(address));
+    SOCKADDR_BTH address{};
     address.addressFamily = AF_BTH;
     address.serviceClassId = guid;
     address.btAddr = addr;
@@ -115,9 +113,12 @@ void BTUnlockClient::ConnectThread() {
         write(m_ClientSocket, serverDataStr.c_str(), (int)serverDataStr.size());
 
         // Read response
-        char buffer[1024] = { 0 };
-        long bytesRead = read(m_ClientSocket, buffer, sizeof(buffer));
-        OnResponseReceived((uint8_t *)buffer, bytesRead);
+        char buffer[1024]{};
+        long bytesRead{};
+        std::vector<uint8_t> readData{};
+        while((bytesRead = read(m_ClientSocket, buffer, sizeof(buffer))) > 0)
+            readData.insert(readData.end(), buffer, buffer + bytesRead);
+        OnResponseReceived(readData.data(), readData.size());
     } else {
         Logger::writeln("Bluetooth connect failed.");
         m_UnlockState = UnlockState::CONNECT_ERROR;

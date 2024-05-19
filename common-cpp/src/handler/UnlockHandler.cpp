@@ -48,20 +48,44 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
         return UnlockResult(UnlockState::NOT_PAIRED_ERROR);
     }
 
-    auto result = UnlockResult(UnlockState::UNKNOWN);
-    for(auto server : servers) {
-        server->SetUnlockInfo(authUser, authProgram);
-        result = RunServer(server); // ToDo
-        if(result.state == UnlockState::SUCCESS)
-            break;
+    // Start servers
+    std::vector<std::thread> threads{};
+    std::promise<UnlockResult> promise{};
+    std::atomic completed(0);
+    std::mutex mutex{};
+    std::condition_variable cv{};
+    std::shared_future future(promise.get_future());
+    auto numServers = servers.size();
+    for (auto server : servers) {
+        threads.emplace_back([this, server, numServers, future, &promise, &completed, &cv, &mutex]() {
+            auto serverResult = RunServer(server, future);
+            completed.fetch_add(1);
+            if(serverResult.state == UnlockState::SUCCESS || completed.load() == numServers) {
+                promise.set_value(serverResult);
+                std::lock_guard l(mutex);
+                cv.notify_one();
+            }
+        });
     }
 
-    for(auto server : servers)
+    // Wait
+    std::unique_lock lock(mutex);
+    cv.wait(lock, [&] {
+        return future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready || completed.load() == servers.size();
+    });
+
+    // Cleanup
+    auto result = future.get();
+    for (auto& thread : threads) {
+        if (thread.joinable())
+            thread.join();
+    }
+    for(const auto server : servers)
         delete server;
     return result;
 }
 
-UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server) {
+UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::shared_future<UnlockResult>& future) {
     if(!server->Start()) {
         auto errorMsg = I18n::Get("error_start_handler");
         Logger::writeln(errorMsg);
@@ -85,6 +109,10 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server) {
             break;
         }
         if(keyScanner.GetKeyState(KEY_LEFTCTRL) && keyScanner.GetKeyState(KEY_LEFTALT)) {
+            state = UnlockState::CANCELED;
+            break;
+        }
+        if(future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
             state = UnlockState::CANCELED;
             break;
         }
