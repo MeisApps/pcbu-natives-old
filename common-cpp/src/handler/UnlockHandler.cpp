@@ -57,6 +57,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     std::shared_future future(promise.get_future());
     auto numServers = servers.size();
     for (auto server : servers) {
+        server->SetUnlockInfo(authUser, authProgram);
         threads.emplace_back([this, server, numServers, future, &promise, &completed, &cv, &mutex]() {
             auto serverResult = RunServer(server, future);
             completed.fetch_add(1);
@@ -71,7 +72,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     // Wait
     std::unique_lock lock(mutex);
     cv.wait(lock, [&] {
-        return future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready || completed.load() == servers.size();
+        return future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready || completed.load() == numServers;
     });
 
     // Cleanup
@@ -90,7 +91,7 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::share
         auto errorMsg = I18n::Get("error_start_handler");
         Logger::writeln(errorMsg);
         m_PrintMessage(errorMsg);
-        return RESULT_ERROR;
+        return UnlockResult(UnlockState::START_ERROR);
     }
 
     m_PrintMessage(I18n::Get("wait_unlock"));

@@ -39,6 +39,7 @@ int main(int argc, char *argv[]) {
 
     auto userName = argv[1];
     auto serviceName = argv[2];
+    Logger::writeln("User: {} Service: {}", userName, serviceName);
     std::function<void (const std::string&)> printMessage = [](const std::string& s) {
         printf("%s\n", s.c_str());
     };

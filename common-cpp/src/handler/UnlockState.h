@@ -14,7 +14,8 @@ enum UnlockState {
     DATA_ERROR = 6,
     NOT_PAIRED_ERROR = 7,
     APP_ERROR = 8,
-    UNK_ERROR = 9
+    START_ERROR = 9,
+    UNK_ERROR = 10
 };
 
 class UnlockStateUtils {
@@ -36,6 +37,8 @@ public:
             return I18n::Get("unlock_error_not_paired");
         } else if(state == UnlockState::APP_ERROR) {
             return I18n::Get("unlock_error_app");
+        } else if(state == UnlockState::START_ERROR) {
+            return I18n::Get("error_start_handler");
         } else if(state == UnlockState::UNK_ERROR) {
             return I18n::Get("unlock_error_unknown");
         } else {
