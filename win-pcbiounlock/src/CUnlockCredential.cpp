@@ -36,6 +36,11 @@ CUnlockCredential::CUnlockCredential():
 
 CUnlockCredential::~CUnlockCredential()
 {
+    if(_pUnlockListener != nullptr)
+    {
+        _pUnlockListener->Release();
+        _pUnlockListener = nullptr;
+    }
     if (_rgFieldStrings[SFI_PASSWORD])
     {
         size_t lenPassword = wcslen(_rgFieldStrings[SFI_PASSWORD]);
@@ -56,10 +61,13 @@ CUnlockCredential::~CUnlockCredential()
 HRESULT CUnlockCredential::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
                                       _In_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR const *rgcpfd,
                                       _In_ FIELD_STATE_PAIR const *rgfsp,
-                                      _In_ ICredentialProviderUser *pcpUser)
+                                      _In_ ICredentialProviderUser *pcpUser,
+                                      _In_ CSampleProvider *pProvider,
+                                      _In_ const std::wstring& userDomain)
 {
     HRESULT hr = S_OK;
     _cpus = cpus;
+    _pCredentialProvider = pProvider;
 
     GUID guidProvider;
     pcpUser->GetProviderID(&guidProvider);
@@ -76,7 +84,7 @@ HRESULT CUnlockCredential::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
     // Initialize the String value of all the fields.
     if (SUCCEEDED(hr))
     {
-        hr = SHStrDupW(WinUtils::StringToWideString(I18n::Get("enter_password")).c_str(), &_rgFieldStrings[SFI_MESSAGE]);
+        hr = SHStrDupW(WinUtils::StringToWideString(I18n::Get("initializing")).c_str(), &_rgFieldStrings[SFI_MESSAGE]);
     }
     if (SUCCEEDED(hr))
     {
@@ -90,35 +98,40 @@ HRESULT CUnlockCredential::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
     {
         hr = pcpUser->GetStringValue(PKEY_Identity_QualifiedUserName, &_pszQualifiedUserName);
     }
-    /*if (SUCCEEDED(hr))
-    {
-        PWSTR pszUserName;
-        pcpUser->GetStringValue(PKEY_Identity_UserName, &pszUserName);
-    }
-    if (SUCCEEDED(hr))
-    {
-        PWSTR pszDisplayName;
-        pcpUser->GetStringValue(PKEY_Identity_DisplayName, &pszDisplayName);
-    }
-    if (SUCCEEDED(hr))
-    {
-        PWSTR pszLogonStatus;
-        pcpUser->GetStringValue(PKEY_Identity_LogonStatusString, &pszLogonStatus);
-    }*/
-
     if (SUCCEEDED(hr))
     {
         hr = pcpUser->GetSid(&_pszUserSid);
+    }
+    if(SUCCEEDED(hr))
+    {
+        _pUnlockListener = new(std::nothrow) CUnlockListener();
+        if(_pUnlockListener != nullptr)
+        {
+            _pUnlockListener->Initialize(_cpus, _pCredentialProvider, this, userDomain);
+        }
+        else
+        {
+            hr = E_OUTOFMEMORY;
+        }
     }
 
     return hr;
 }
 
+bool CUnlockCredential::IsSelected() const
+{
+    return _isSelected;
+}
+
 void CUnlockCredential::SetUnlockData(const UnlockResult& result)
 {
     _unlockResult = result;
-    auto message = UnlockStateUtils::ToString(_unlockResult.state);
-    SHStrDupW(WinUtils::StringToWideString(message).c_str(), &(_rgFieldStrings[SFI_MESSAGE]));
+    UpdateMessage(UnlockStateUtils::ToString(result.state));
+}
+
+void CUnlockCredential::UpdateMessage(const std::string& message)
+{
+    SHStrDupW(WinUtils::StringToWideString(message).c_str(), &_rgFieldStrings[SFI_MESSAGE]);
     if (_pCredProvCredentialEvents) {
         _pCredProvCredentialEvents->SetFieldString(this, SFI_MESSAGE, _rgFieldStrings[SFI_MESSAGE]);
     }
@@ -158,6 +171,8 @@ HRESULT CUnlockCredential::UnAdvise()
 // selected, you would do it here.
 HRESULT CUnlockCredential::SetSelected(_Out_ BOOL *pbAutoLogon)
 {
+    _isSelected = true;
+    _pUnlockListener->Start();
     *pbAutoLogon = _unlockResult.state == UnlockState::SUCCESS;
     return S_OK;
 }
@@ -167,6 +182,8 @@ HRESULT CUnlockCredential::SetSelected(_Out_ BOOL *pbAutoLogon)
 // is to clear out the password field.
 HRESULT CUnlockCredential::SetDeselected()
 {
+    _isSelected = false;
+    _pUnlockListener->Stop();
     HRESULT hr = S_OK;
     if (_rgFieldStrings[SFI_PASSWORD])
     {
@@ -181,7 +198,6 @@ HRESULT CUnlockCredential::SetDeselected()
             _pCredProvCredentialEvents->SetFieldString(this, SFI_PASSWORD, _rgFieldStrings[SFI_PASSWORD]);
         }
     }
-
     return hr;
 }
 
@@ -236,7 +252,7 @@ HRESULT CUnlockCredential::GetBitmapValue(DWORD dwFieldID, _Outptr_result_nullon
 
     if ((SFI_TILEIMAGE == dwFieldID))
     {
-        HBITMAP hbmp = (HBITMAP)LoadImageW(NULL, L"C:\\ProgramData\\Microsoft\\User Account Pictures\\user.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+        HBITMAP hbmp = LoadBitmapW(g_hinst, MAKEINTRESOURCE(IDB_TILE_IMAGE));
         if (hbmp != NULL)
         {
             hr = S_OK;
@@ -245,6 +261,12 @@ HRESULT CUnlockCredential::GetBitmapValue(DWORD dwFieldID, _Outptr_result_nullon
         else
         {
             hr = HRESULT_FROM_WIN32(GetLastError());
+            hbmp = (HBITMAP)LoadImageW(NULL, L"C:\\ProgramData\\Microsoft\\User Account Pictures\\user.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+            if(hbmp != NULL)
+            {
+                hr = S_OK;
+                *phbmp = hbmp;
+            }
         }
     }
     else

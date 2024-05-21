@@ -15,6 +15,7 @@ struct PCBUAppSettings {
     std::string language;
     std::string serverIP;
     int unlockServerPort{};
+    bool waitForKeyPress{};
 };
 
 class AppStorage {

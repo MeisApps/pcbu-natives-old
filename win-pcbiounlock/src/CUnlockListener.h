@@ -1,29 +1,34 @@
 #pragma once
 
+#include <atomic>
 #include <thread>
 
 #include <WinSock2.h>
 #include <credentialprovider.h>
 
 class CSampleProvider;
-class CMessageCredential;
+class CUnlockCredential;
 class CUnlockListener
 {
 public:
 	CUnlockListener() = default;
-	void Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider *pCredProv, CMessageCredential *pMessageCredential, const std::string& userDomain);
+	void Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider *pCredentialProvider, CUnlockCredential *pCredential, const std::wstring& userDomain);
 	void Release();
 
-	bool HasResponse();
+	void Start();
+	void Stop();
+
+	bool HasResponse() const;
 
 private:
 	void ListenThread();
 
-	std::thread m_ListenThread;
-	bool m_HasResponse;
+	std::thread m_ListenThread{};
+	std::atomic<bool> m_IsRunning{};
+	bool m_HasResponse{};
 
-	CREDENTIAL_PROVIDER_USAGE_SCENARIO m_ProviderUsage;
-	CSampleProvider* m_CredProv;
-	CMessageCredential* m_MessageCred;
-	std::string m_UserDomain;
+	CREDENTIAL_PROVIDER_USAGE_SCENARIO m_ProviderUsage{};
+	CSampleProvider* m_CredentialProvider{};
+	CUnlockCredential* m_Credential{};
+	std::wstring m_UserDomain{};
 };

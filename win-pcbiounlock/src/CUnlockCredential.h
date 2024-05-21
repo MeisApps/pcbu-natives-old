@@ -24,6 +24,7 @@
 #include <propkey.h>
 
 #include "common.h"
+#include "CUnlockListener.h"
 #include "dll.h"
 #include "resource.h"
 #include "handler/UnlockHandler.h"
@@ -103,12 +104,16 @@ public:
     HRESULT Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
                        _In_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR const *rgcpfd,
                        _In_ FIELD_STATE_PAIR const *rgfsp,
-                       _In_ ICredentialProviderUser *pcpUser);
+                       _In_ ICredentialProviderUser *pcpUser,
+                       _In_ CSampleProvider *pProvider,
+                       _In_ const std::wstring& userDomain);
     CUnlockCredential();
 
+    bool IsSelected() const;
     void SetUnlockData(const UnlockResult& result);
+    void UpdateMessage(const std::string& message);
 
-  private:
+  public:
 
     virtual ~CUnlockCredential();
     long                                    _cRef;
@@ -124,5 +129,8 @@ public:
     DWORD                                   _dwComboIndex;                                  // Tracks the current index of our combobox.
     bool                                    _fShowControls;                                 // Tracks the state of our show/hide controls link.
     bool                                    _fIsLocalUser;                                  // If the cred prov is assosiating with a local user tile
+    CSampleProvider *_pCredentialProvider;
+    CUnlockListener *_pUnlockListener;
     UnlockResult _unlockResult;
+    bool _isSelected;
 };

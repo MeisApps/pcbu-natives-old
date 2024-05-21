@@ -1,31 +1,47 @@
 #include "CUnlockListener.h"
 
 #include "CSampleProvider.h"
-#include "CMessageCredential.h"
 
 #include "storage/AppStorage.h"
 #include "I18n.h"
 
 #include "handler/UnlockHandler.h"
+
 #include <SensAPI.h>
 #pragma comment(lib, "SensAPI.lib")
 
-void CUnlockListener::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, CSampleProvider* pCredProv, CMessageCredential* pMessageCredential, const std::string& userDomain)
+void CUnlockListener::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,  CSampleProvider *pCredentialProvider, CUnlockCredential *pCredential, const std::wstring& userDomain)
 {
     m_ProviderUsage = cpus;
-    m_CredProv = pCredProv;
-    m_MessageCred = pMessageCredential;
+    m_CredentialProvider = pCredentialProvider;
+    m_Credential = pCredential;
     m_UserDomain = userDomain;
-    m_ListenThread = std::thread(&CUnlockListener::ListenThread, this);
 }
 
 void CUnlockListener::Release()
 {
+    Stop();
+}
+
+void CUnlockListener::Start()
+{
+    if(m_IsRunning)
+        return;
+    Stop();
+    m_IsRunning = true;
+    m_ListenThread = std::thread(&CUnlockListener::ListenThread, this);
+}
+
+void CUnlockListener::Stop()
+{
+    if(!m_IsRunning)
+        return;
+    m_IsRunning = false;
     if(m_ListenThread.joinable())
         m_ListenThread.join();
 }
 
-bool CUnlockListener::HasResponse()
+bool CUnlockListener::HasResponse() const
 {
 	return m_HasResponse;
 }
@@ -45,23 +61,27 @@ void GetAllKeyState(byte* keys, size_t len)
 void CUnlockListener::ListenThread()
 {
     // Init
-    auto userSplit = Utils::SplitString(m_UserDomain, '\\');
+    m_Credential->UpdateMessage(I18n::Get("initializing"));
+    const auto userDomainStr = WinUtils::WideStringToString(m_UserDomain);
+    const auto userSplit = Utils::SplitString(userDomainStr, '\\');
     if (userSplit.size() != 2) {
-        m_MessageCred->UpdateMessage(I18n::Get("error_invalid_user"));
+        m_Credential->UpdateMessage(I18n::Get("error_invalid_user"));
         return;
     }
 
     // Wait
+    Sleep(500);
+    auto storage = AppStorage::Get();
     auto devices = PairedDeviceStorage::GetDevices();
-    auto waitForNetwork = std::any_of(devices.begin(), devices.end(), [](const PairedDevice& device)
+    const auto waitForNetwork = std::any_of(devices.begin(), devices.end(), [](const PairedDevice& device)
     {
         return device.pairingMethod == PairingMethod::TCP || device.pairingMethod == PairingMethod::CLOUD_TCP;
     });
     if (m_ProviderUsage == CPUS_LOGON || m_ProviderUsage == CPUS_UNLOCK_WORKSTATION) {
         // Network
         if (waitForNetwork) {
-            m_MessageCred->UpdateMessage(I18n::Get("wait_network"));
-            while (true) {
+            m_Credential->UpdateMessage(I18n::Get("wait_network"));
+            while (m_IsRunning) {
                 DWORD flags{};
                 if (IsNetworkAlive(&flags) && GetLastError() == 0 || GetAsyncKeyState(VK_LCONTROL) < 0 && GetAsyncKeyState(VK_LMENU) < 0)
                     break;
@@ -70,30 +90,32 @@ void CUnlockListener::ListenThread()
         }
 
         // Key press
-        Sleep(500);
-        m_MessageCred->UpdateMessage(I18n::Get("wait_key_press"));
+        if(storage.waitForKeyPress) {
+            Sleep(500);
+            m_Credential->UpdateMessage(I18n::Get("wait_key_press"));
+            byte lastKeys[KEY_RANGE];
+            GetAllKeyState(lastKeys, KEY_RANGE);
 
-        byte lastKeys[KEY_RANGE];
-        GetAllKeyState(lastKeys, KEY_RANGE);
+            while (m_IsRunning) {
+                byte keys[KEY_RANGE];
+                GetAllKeyState(keys, KEY_RANGE);
 
-        while (true) {
-            byte keys[KEY_RANGE];
-            GetAllKeyState(keys, KEY_RANGE);
-
-            if (memcmp(keys, lastKeys, KEY_RANGE) != 0)
-                break;
-            Sleep(10);
+                if (memcmp(keys, lastKeys, KEY_RANGE) != 0)
+                    break;
+                Sleep(10);
+            }
         }
     }
 
     // Unlock
     std::function printMessage = [this](const std::string& s) {
-        m_MessageCred->UpdateMessage(s);
+        m_Credential->UpdateMessage(s);
     };
 
     auto handler = UnlockHandler(printMessage);
-    auto result = handler.GetResult(m_UserDomain, "Windows-Login");
+    const auto result = handler.GetResult(userDomainStr, "Windows-Login", &m_IsRunning);
 
     m_HasResponse = true;
-    m_CredProv->OnStatusChanged(result);
+    m_Credential->SetUnlockData(result);
+    m_CredentialProvider->UpdateCredsStatus();
 }

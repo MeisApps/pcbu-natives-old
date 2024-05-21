@@ -19,7 +19,7 @@ UnlockHandler::UnlockHandler(const std::function<void(std::string)>& printMessag
     m_PrintMessage = printMessage;
 }
 
-UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::string& authProgram) {
+UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::string& authProgram, std::atomic<bool> *isRunning) {
     auto appSettings = AppStorage::Get();
     std::vector<BaseUnlockServer *> servers{};
     for(const auto& device : PairedDeviceStorage::GetDevicesForUser(authUser)) {
@@ -39,6 +39,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
             Logger::writeln("Invalid pairing method.");
             continue;
         }
+        server->SetUnlockInfo(authUser, authProgram);
         servers.emplace_back(server);
     }
     if(servers.empty()) {
@@ -57,9 +58,8 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     std::shared_future future(promise.get_future());
     auto numServers = servers.size();
     for (auto server : servers) {
-        server->SetUnlockInfo(authUser, authProgram);
-        threads.emplace_back([this, server, numServers, future, &promise, &completed, &cv, &mutex]() {
-            auto serverResult = RunServer(server, future);
+        threads.emplace_back([this, server, numServers, future, isRunning, &promise, &completed, &cv, &mutex]() {
+            auto serverResult = RunServer(server, future, isRunning);
             completed.fetch_add(1);
             if(serverResult.state == UnlockState::SUCCESS || completed.load() == numServers) {
                 promise.set_value(serverResult);
@@ -86,7 +86,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     return result;
 }
 
-UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::shared_future<UnlockResult>& future) {
+UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::shared_future<UnlockResult>& future, std::atomic<bool> *isRunning) {
     if(!server->Start()) {
         auto errorMsg = I18n::Get("error_start_handler");
         Logger::writeln(errorMsg);
@@ -113,7 +113,8 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::share
             state = UnlockState::CANCELED;
             break;
         }
-        if(future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+        if(future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready
+            || (isRunning != nullptr && !isRunning->load())) {
             state = UnlockState::CANCELED;
             break;
         }

@@ -17,7 +17,6 @@
 #include <new>
 
 #include "CUnlockCredential.h"
-#include "CMessageCredential.h"
 #include "CUnlockListener.h"
 #include "handler/UnlockHandler.h"
 
@@ -72,8 +71,8 @@ class CSampleProvider : public ICredentialProvider,
 
     friend HRESULT CSample_CreateInstance(_In_ REFIID riid, _Outptr_ void** ppv);
 
-  public:
-    void OnStatusChanged(const UnlockResult& result);
+public:
+    void UpdateCredsStatus() const;
 
   protected:
     CSampleProvider();
@@ -87,12 +86,10 @@ class CSampleProvider : public ICredentialProvider,
     HRESULT _EnumerateEmptyTileCredential();
 private:
     long                                    _cRef;            // Used for reference counting.
-    CUnlockCredential                       *_pCredential;    // SampleV2Credential
-    CMessageCredential                      *_pMessageCredential;
-    CUnlockListener                         *_pUnlockListener;
+    std::vector<CUnlockCredential *>                      _pCredentials;
     bool                                    _fRecreateEnumeratedCredentials;
     CREDENTIAL_PROVIDER_USAGE_SCENARIO      _cpus;
     ICredentialProviderUserArray            *_pCredProviderUserArray;
     ICredentialProviderEvents               *_pCredProvEvents;
-    UINT_PTR                    _upAdviseContext;       // Used to tell our owner who we are when asking to 
+    UINT_PTR                                _upAdviseContext;       // Used to tell our owner who we are when asking to
 };

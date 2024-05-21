@@ -21,13 +21,11 @@
 
 CSampleProvider::CSampleProvider() :
     _cRef(1),
-    _pCredential(nullptr),
-    _pMessageCredential(nullptr),
-    _pUnlockListener(nullptr),
     _pCredProviderUserArray(nullptr),
     _pCredProvEvents(nullptr),
     _upAdviseContext(0),
-    _fRecreateEnumeratedCredentials(true)
+    _fRecreateEnumeratedCredentials(true),
+    _cpus()
 {
     DllAddRef();
     Logger::init();
@@ -35,16 +33,9 @@ CSampleProvider::CSampleProvider() :
 
 CSampleProvider::~CSampleProvider()
 {
-    if (_pCredential != nullptr)
-    {
-        _pCredential->Release();
-        _pCredential = nullptr;
-    }
-    if (_pMessageCredential != nullptr)
-    {
-        _pMessageCredential->Release();
-        _pMessageCredential = nullptr;
-    }
+    for(const auto cred : _pCredentials)
+        cred->Release();
+    _pCredentials.clear();
     if (_pCredProviderUserArray != nullptr)
     {
         _pCredProviderUserArray->Release();
@@ -52,18 +43,6 @@ CSampleProvider::~CSampleProvider()
     }
 
     DllRelease();
-}
-
-void CSampleProvider::OnStatusChanged(const UnlockResult& result)
-{
-    if (_pCredential != nullptr)
-    {
-        _pCredential->SetUnlockData(result);
-    }
-    if (_pCredProvEvents != nullptr)
-    {
-        _pCredProvEvents->CredentialsChanged(_upAdviseContext);
-    }
 }
 
 // SetUsageScenario is the provider's cue that it's going to be asked for tiles
@@ -160,14 +139,7 @@ HRESULT CSampleProvider::UnAdvise()
 HRESULT CSampleProvider::GetFieldDescriptorCount(
     _Out_ DWORD *pdwCount)
 {
-    if (_pUnlockListener != nullptr && _pUnlockListener->HasResponse())
-    {
-        *pdwCount = SFI_NUM_FIELDS;
-    }
-    else
-    {
-        *pdwCount = SMFI_NUM_FIELDS;
-    }
+    *pdwCount = SFI_NUM_FIELDS;
     return S_OK;
 }
 
@@ -180,29 +152,13 @@ HRESULT CSampleProvider::GetFieldDescriptorAt(
     *ppcpfd = nullptr;
 
     // Verify dwIndex is a valid field.
-    if (_pUnlockListener != nullptr && _pUnlockListener->HasResponse())
+    if ((dwIndex < SFI_NUM_FIELDS) && ppcpfd)
     {
-        // Verify dwIndex is a valid field.
-        if ((dwIndex < SFI_NUM_FIELDS) && ppcpfd)
-        {
-            hr = FieldDescriptorCoAllocCopy(s_rgCredProvFieldDescriptors[dwIndex], ppcpfd);
-        }
-        else
-        {
-            hr = E_INVALIDARG;
-        }
+        hr = FieldDescriptorCoAllocCopy(s_rgCredProvFieldDescriptors[dwIndex], ppcpfd);
     }
     else
     {
-        // Verify dwIndex is a valid field.
-        if ((dwIndex < SMFI_NUM_FIELDS) && ppcpfd)
-        {
-            hr = FieldDescriptorCoAllocCopy(s_rgMessageCredProvFieldDescriptors[dwIndex], ppcpfd);
-        }
-        else
-        {
-            hr = E_INVALIDARG;
-        }
+        hr = E_INVALIDARG;
     }
 
     return hr;
@@ -220,12 +176,16 @@ HRESULT CSampleProvider::GetCredentialCount(
     _Out_ DWORD *pdwDefault,
     _Out_ BOOL *pbAutoLogonWithDefault)
 {
-    *pdwDefault = 0;
     *pbAutoLogonWithDefault = FALSE;
-
-    if (_pUnlockListener != nullptr && _pUnlockListener->HasResponse())
+    int idx{};
+    for(const auto cred : _pCredentials)
     {
-        *pbAutoLogonWithDefault = TRUE;
+        if(cred->_unlockResult.state == UnlockState::SUCCESS)
+        {
+            *pdwDefault = idx;
+            *pbAutoLogonWithDefault = TRUE;
+        }
+        idx++;
     }
 
     if (_fRecreateEnumeratedCredentials)
@@ -235,7 +195,7 @@ HRESULT CSampleProvider::GetCredentialCount(
         _CreateEnumeratedCredentials();
     }
 
-    *pdwCount = 1;
+    *pdwCount = static_cast<DWORD>(_pCredentials.size());
     return S_OK;
 }
 
@@ -246,23 +206,16 @@ HRESULT CSampleProvider::GetCredentialAt(
     _Outptr_result_nullonfailure_ ICredentialProviderCredential **ppcpc)
 {
     HRESULT hr = E_INVALIDARG;
+    if(ppcpc == nullptr)
+    {
+        return hr;
+    }
     *ppcpc = nullptr;
 
-    if ((dwIndex == 0) && ppcpc)
+    if (dwIndex < _pCredentials.size())
     {
-        if (_pCredential == nullptr || _pMessageCredential == nullptr)
-        {
-            return hr;
-        }
-
-        if (_pUnlockListener != nullptr && _pUnlockListener->HasResponse())
-        {
-            hr = _pCredential->QueryInterface(IID_ICredentialProviderCredential, reinterpret_cast<void**>(ppcpc));
-        }
-        else
-        {
-            hr = _pMessageCredential->QueryInterface(IID_ICredentialProviderCredential, reinterpret_cast<void**>(ppcpc));
-        }
+        const auto cred = _pCredentials[dwIndex];
+        hr = cred->QueryInterface(IID_ICredentialProviderCredential, reinterpret_cast<void**>(ppcpc));
     }
     return hr;
 }
@@ -298,21 +251,9 @@ void CSampleProvider::_CreateEnumeratedCredentials()
 
 void CSampleProvider::_ReleaseEnumeratedCredentials()
 {
-    if (_pCredential != nullptr)
-    {
-        _pCredential->Release();
-        _pCredential = nullptr;
-    }
-    if (_pMessageCredential != nullptr)
-    {
-        _pMessageCredential->Release();
-        _pMessageCredential = nullptr;
-    }
-    if (_pUnlockListener != nullptr)
-    {
-        _pUnlockListener->Release();
-        _pUnlockListener = nullptr;
-    }
+    for(const auto cred : _pCredentials)
+        cred->Release();
+    _pCredentials.clear();
 }
 
 HRESULT CSampleProvider::_EnumerateCredentials()
@@ -324,9 +265,6 @@ HRESULT CSampleProvider::_EnumerateCredentials()
         _pCredProviderUserArray->GetCount(&dwUserCount);
         if (dwUserCount > 0)
         {
-            const auto devices = PairedDeviceStorage::GetDevices();
-            ICredentialProviderUser* pPairedUser = nullptr;
-            std::string pairedUserDomain{};
             for (DWORD i = 0; i < dwUserCount; i++)
             {
                 ICredentialProviderUser* pCredUser;
@@ -338,56 +276,27 @@ HRESULT CSampleProvider::_EnumerateCredentials()
                     if (SUCCEEDED(hr))
                     {
                         auto userDomainStr = WinUtils::WideStringToString(std::wstring(userDomain));
-                        for(const auto& device : devices)
+                        auto userDevices = PairedDeviceStorage::GetDevicesForUser(userDomainStr);
+                        for(auto userDevice : userDevices)
                         {
-                            if (userDomainStr == device.userName) // ToDo?
+                            auto cred = new(std::nothrow) CUnlockCredential();
+                            if(cred != nullptr)
                             {
-                                pPairedUser = pCredUser;
-                                pairedUserDomain = userDomainStr;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (pPairedUser != nullptr)
-            {
-                _pCredential = new(std::nothrow) CUnlockCredential();
-                if (_pCredential != nullptr)
-                {
-                    hr = _pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, pPairedUser);
-                    if (FAILED(hr))
-                    {
-                        _pCredential->Release();
-                        _pCredential = nullptr;
-                    }
-                    else if (SUCCEEDED(hr))
-                    {
-                        _pMessageCredential = new(std::nothrow) CMessageCredential();
-                        if (_pMessageCredential != nullptr)
-                        {
-                            hr = _pMessageCredential->Initialize(_cpus, s_rgMessageCredProvFieldDescriptors, s_rgMessageFieldStatePairs, pPairedUser);
-                            if (FAILED(hr))
-                            {
-                                _pMessageCredential->Release();
-                                _pMessageCredential = nullptr;
-                            }
-                            else if (SUCCEEDED(hr)) {
-                                _pUnlockListener = new(std::nothrow) CUnlockListener();
-                                if (_pUnlockListener != nullptr)
+                                hr = cred->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, pCredUser, this, userDomain);
+                                if (FAILED(hr))
                                 {
-                                    _pUnlockListener->Initialize(_cpus, this, _pMessageCredential, pairedUserDomain);
+                                    cred->Release();
+                                    cred = nullptr;
                                 }
-                                else
+                                else if (SUCCEEDED(hr))
                                 {
-                                    hr = E_OUTOFMEMORY;
+                                    _pCredentials.emplace_back(cred);
                                 }
                             }
-                        }
-                        else
-                        {
-                            hr = E_OUTOFMEMORY;
+                            else
+                            {
+                                hr = E_OUTOFMEMORY;
+                            }
                         }
                     }
                 }
@@ -395,24 +304,31 @@ HRESULT CSampleProvider::_EnumerateCredentials()
                 {
                     hr = E_OUTOFMEMORY;
                 }
-                pPairedUser->Release();
             }
-            else
+
+            if(_pCredentials.empty())
             {
                 hr = E_ABORT;
-                Logger::writeln("Could not find paired user.");
+                Logger::writeln("Could not find any paired user.");
             }
         }
     }
     return hr;
 }
 
+void CSampleProvider::UpdateCredsStatus() const
+{
+    if (_pCredProvEvents != nullptr)
+    {
+        _pCredProvEvents->CredentialsChanged(_upAdviseContext);
+    }
+}
+
 // Boilerplate code to create our provider.
 HRESULT CSample_CreateInstance(_In_ REFIID riid, _Outptr_ void **ppv)
 {
     HRESULT hr;
-    CSampleProvider *pProvider = new(std::nothrow) CSampleProvider();
-    if (pProvider)
+    if (auto pProvider = new(std::nothrow) CSampleProvider())
     {
         hr = pProvider->QueryInterface(riid, ppv);
         pProvider->Release();
