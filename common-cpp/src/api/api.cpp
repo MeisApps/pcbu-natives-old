@@ -17,7 +17,9 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <arpa/inet.h>
+#ifdef LINUX
 #include <netpacket/packet.h>
+#endif
 #endif
 
 extern "C" {
@@ -131,6 +133,8 @@ extern "C" {
                 if (data == nullptr)
                     goto end;
                 strncpy(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
+
+#ifdef LINUX
                 for (auto ifa2 = ifAddrStruct; ifa2 != nullptr; ifa2 = ifa2->ifa_next) {
                     if (ifa2->ifa_addr && ifa2->ifa_addr->sa_family == AF_PACKET && strcmp(ifa->ifa_name, ifa2->ifa_name) == 0) {
                         auto sll = reinterpret_cast<struct sockaddr_ll*>(ifa2->ifa_addr);
@@ -142,6 +146,9 @@ extern "C" {
                         break;
                     }
                 }
+#elif APPLE
+#warning Not implemented on Apple.
+#endif
 
                 freeifaddrs(ifAddrStruct);
                 return data;

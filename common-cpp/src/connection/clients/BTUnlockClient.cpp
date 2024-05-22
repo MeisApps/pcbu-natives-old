@@ -51,6 +51,7 @@ void BTUnlockClient::Stop() {
     if(!m_IsRunning)
         return;
 
+#ifndef APPLE
     if(m_ClientSocket != -1 && m_HasConnection)
         write(m_ClientSocket, "CLOSE", 5);
 
@@ -59,6 +60,9 @@ void BTUnlockClient::Stop() {
     SAFE_CLOSE(m_ClientSocket);
     if(m_AcceptThread.joinable())
         m_AcceptThread.join();
+#else
+#warning Not implemented on Apple.
+#endif
 }
 
 void BTUnlockClient::ConnectThread() {
@@ -75,6 +79,7 @@ void BTUnlockClient::ConnectThread() {
         return;
     }
 #endif
+#ifndef APPLE
     m_ClientSocket = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
     if(m_ClientSocket == SOCKET_INVALID) {
         Logger::writeln("Bluetooth socket failed.");
@@ -82,6 +87,9 @@ void BTUnlockClient::ConnectThread() {
         m_UnlockState = UnlockState::UNK_ERROR;
         return;
     }
+#else
+#warning Not implemented on Apple.
+#endif
 
 #ifdef _WIN32
     GUID guid = { 0x62182bf7, 0x97c8, 0x45f9, { 0xaa, 0x2c, 0x53, 0xc5, 0xf2, 0x00, 0x8b, 0xdf } };
@@ -100,6 +108,7 @@ void BTUnlockClient::ConnectThread() {
     str2ba(m_DeviceAddress.c_str(), &address.rc_bdaddr);
 #endif
 
+#ifndef APPLE
     int result = connect(m_ClientSocket, (struct sockaddr*)&address, sizeof(address));
     if(result == 0) {
         m_HasConnection = true;
@@ -126,4 +135,7 @@ void BTUnlockClient::ConnectThread() {
 
     m_IsRunning = false;
     SAFE_CLOSE(m_ClientSocket);
+#else
+#warning Not implemented on Apple.
+#endif
 }

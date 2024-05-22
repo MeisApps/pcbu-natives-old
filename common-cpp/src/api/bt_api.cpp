@@ -14,7 +14,8 @@
 #include <locale>
 #include <codecvt>
 #define DEVICE_LIMIT 20
-#else
+#endif
+#ifdef LINUX
 #include <unistd.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -69,13 +70,18 @@ extern "C" {
             CloseHandle(hRadio);
         }
         return result;
-#else
+#endif
+#ifdef LINUX
         int dev_id = hci_get_route(nullptr);
         int sock = hci_open_dev(dev_id);
         if (dev_id < 0 || sock < 0) {
             return false;
         }
         close(sock);
+        return true;
+#endif
+#ifdef APPLE
+#warning Not implemented on Apple.
         return true;
 #endif
     }
@@ -139,7 +145,8 @@ extern "C" {
         *count = idx;
         WSALookupServiceEnd(hLookup);
         return devicesPtr;
-#else
+#endif
+#ifdef LINUX
         inquiry_info* ii = nullptr;
         int max_rsp, num_rsp;
         int dev_id, sock, len, flags;
@@ -188,6 +195,10 @@ extern "C" {
         free(ii);
         close(sock);
         return devices;
+#endif
+#ifdef APPLE
+#warning Not implemented on Apple.
+        return nullptr;
 #endif
     }
 

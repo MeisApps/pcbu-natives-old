@@ -1,13 +1,20 @@
 #include <iostream>
+
+#ifdef LINUX
+#include <unistd.h>
 #include <pwd.h>
 #include <shadow.h>
-#include <unistd.h>
 #include <crypt.h>
+#endif
+#ifdef APPLE
+#include <CoreServices/CoreServices.h>
+#endif
 
 #include "handler/UnlockHandler.h"
 #include "I18n.h"
 
-static int CheckPassword(const char* user, const char* password) {
+static bool CheckPassword(const char* user, const char* password) {
+#ifdef LINUX
     struct passwd *passwdEntry = getpwnam(user);
     if (!passwdEntry) {
         Logger::writeln("Failed to read passwd entry for user: ", std::string(user));
@@ -21,7 +28,29 @@ static int CheckPassword(const char* user, const char* password) {
         Logger::writeln("Failed to read shadow entry for user: " + std::string(user));
         return 1;
     }
-    return strcmp(shadowEntry->sp_pwdp, crypt(password, shadowEntry->sp_pwdp));
+    return strcmp(shadowEntry->sp_pwdp, crypt(password, shadowEntry->sp_pwdp)) == 0;
+#endif
+#ifdef APPLE
+    bool isValid = false;
+    auto cfUsername = CFStringCreateWithCString(nullptr, user, kCFStringEncodingUTF8);
+    auto cfPassword = CFStringCreateWithCString(nullptr, password, kCFStringEncodingUTF8);
+    auto query = CSIdentityQueryCreateForName(kCFAllocatorDefault, cfUsername, kCSIdentityQueryStringEquals, kCSIdentityClassUser, CSGetDefaultIdentityAuthority());
+
+    CSIdentityQueryExecute(query, kCSIdentityQueryGenerateUpdateEvents, nullptr);
+    auto idArray = CSIdentityQueryCopyResults(query);
+    if (CFArrayGetCount(idArray) == 1) {
+        auto result = (CSIdentityRef) CFArrayGetValueAtIndex(idArray, 0);
+        if (CSIdentityAuthenticateUsingPassword(result, cfPassword)) {
+            isValid = true;
+        }
+    }
+
+    CFRelease(cfUsername);
+    CFRelease(cfPassword);
+    CFRelease(idArray);
+    CFRelease(query);
+    return isValid;
+#endif
 }
 
 int main(int argc, char *argv[]) {
@@ -39,7 +68,6 @@ int main(int argc, char *argv[]) {
 
     auto userName = argv[1];
     auto serviceName = argv[2];
-    Logger::writeln("User: {} Service: {}", userName, serviceName);
     std::function<void (const std::string&)> printMessage = [](const std::string& s) {
         printf("%s\n", s.c_str());
     };
@@ -47,7 +75,7 @@ int main(int argc, char *argv[]) {
     auto result = handler.GetResult(userName, serviceName);
     if(result.state == UnlockState::SUCCESS) {
         if(strcmp(userName, result.device.userName.c_str()) == 0) {
-            if(CheckPassword(userName, result.password.c_str()) == 0) {
+            if(CheckPassword(userName, result.password.c_str())) {
                 //pam_set_item(pamh, PAM_AUTHTOK, result.additionalData.c_str());
                 return 0;
             }

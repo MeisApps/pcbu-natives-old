@@ -3,13 +3,17 @@
 
 #ifdef _WIN32
 #include <Windows.h>
-#else
+#endif
+#ifdef LINUX
 #include <unistd.h>
 #include <fcntl.h>
 #include <linux/input.h>
 
 #include <filesystem>
 namespace fs = std::filesystem;
+#endif
+#ifdef APPLE
+#include <Carbon/Carbon.h>
 #endif
 
 KeyScanner::KeyScanner() = default;
@@ -20,10 +24,16 @@ KeyScanner::~KeyScanner() {
 bool KeyScanner::GetKeyState(int key) {
 #ifdef _WIN32
     return GetAsyncKeyState(key) < 0;
-#else
+#endif
+#ifdef LINUX
     if (!m_KeyMap.count(key))
         return false;
     return m_KeyMap[key];
+#endif
+#ifdef APPLE
+    unsigned char keyMap[16];
+    GetKeys((BigEndianUInt32*) &keyMap);
+    return (0 != ((keyMap[key >> 3] >> (key & 7)) & 1));
 #endif
 }
 
@@ -34,13 +44,21 @@ std::map<int, bool> KeyScanner::GetAllKeys() {
         map[i] = GetKeyState(i);
     }
     return map;
-#else
+#endif
+#ifdef LINUX
     return m_KeyMap;
+#endif
+#ifdef APPLE
+    auto map = std::map<int, bool>();
+    for (int i = 0; i < 0x7E; i++) {
+        map[i] = GetKeyState(i);
+    }
+    return map;
 #endif
 }
 
 void KeyScanner::Start() {
-#ifndef _WIN32
+#ifdef LINUX
     if (m_IsRunning)
         return;
 
@@ -50,7 +68,7 @@ void KeyScanner::Start() {
 }
 
 void KeyScanner::Stop() {
-#ifndef _WIN32
+#ifdef LINUX
     if(!m_IsRunning)
         return;
 
@@ -60,7 +78,7 @@ void KeyScanner::Stop() {
 #endif
 }
 
-#ifndef _WIN32
+#ifdef LINUX
 void KeyScanner::ScanThread() {
     auto kbds = std::vector<int>();
     for(const auto& keyboard : GetKeyboards()) {

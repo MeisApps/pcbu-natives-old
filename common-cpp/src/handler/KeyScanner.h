@@ -19,7 +19,7 @@ public:
     void Stop();
 
 private:
-#ifndef _WIN32
+#ifdef LINUX
     static std::vector<std::string> GetKeyboards();
     void ScanThread();
 

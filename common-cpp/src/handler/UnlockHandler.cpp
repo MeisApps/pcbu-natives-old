@@ -11,8 +11,14 @@
 #include <Windows.h>
 #define KEY_LEFTCTRL VK_LCONTROL
 #define KEY_LEFTALT VK_LMENU
-#else
+#endif
+#ifdef LINUX
 #include <linux/input.h>
+#endif
+#ifdef APPLE
+#include <Carbon/Carbon.h>
+#define KEY_LEFTCTRL kVK_Control
+#define KEY_LEFTALT kVK_Option
 #endif
 
 UnlockHandler::UnlockHandler(const std::function<void(std::string)>& printMessage) {

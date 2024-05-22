@@ -4,6 +4,14 @@
 #define PAM_SM_AUTH
 #include <security/pam_modules.h>
 
+#ifdef LINUX
+#define PCBU_AUTH_PATH "/usr/sbin/pcbu_auth"
+#endif
+#ifdef APPLE
+#include <security/pam_appl.h>
+#define PCBU_AUTH_PATH "/usr/local/sbin/pcbu_auth"
+#endif
+
 static int print_pam(struct pam_conv *conv, const std::string& message) {
     struct pam_message msg{};
     struct pam_response *resp = nullptr;
@@ -12,7 +20,7 @@ static int print_pam(struct pam_conv *conv, const std::string& message) {
     if(!conv)
         return PAM_CONV_ERR;
 
-    msg.msg = message.c_str();
+    msg.msg = (char *)message.c_str();
     msg.msg_style = PAM_TEXT_INFO;
     conv->conv(1, &pMsg, &resp, conv->appdata_ptr);
     return PAM_SUCCESS;
@@ -36,11 +44,11 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     }
 
     std::vector<std::string> args;
-    args.emplace_back("/usr/sbin/pcbu_auth");
+    args.emplace_back(PCBU_AUTH_PATH);
     args.emplace_back(userName);
     args.emplace_back(serviceName);
 
-    redi::ipstream proc("/usr/sbin/pcbu_auth", args, redi::pstreams::pstdout);
+    redi::ipstream proc(PCBU_AUTH_PATH, args, redi::pstreams::pstdout);
     std::string line;
     while (std::getline(proc.out(), line))
         print_pam(conv, line);

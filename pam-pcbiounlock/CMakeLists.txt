@@ -10,7 +10,14 @@ find_package(OpenSSL 3 REQUIRED)
 set(SPDLOG_BUILD_PIC ON CACHE BOOL "")
 add_subdirectory(common-cpp/deps/spdlog)
 
-add_compile_definitions(LINUX)
+if(APPLE)
+    add_compile_definitions(APPLE)
+    set(PLATFORM_LIBS)
+elseif(UNIX)
+    add_compile_definitions(LINUX)
+    set(PLATFORM_LIBS bluetooth)
+endif()
+
 add_library(pam_pcbiounlock SHARED
         src/pam_auth.cpp
         src/pam_account.c
@@ -40,4 +47,4 @@ add_library(pam_pcbiounlock SHARED
         common-cpp/src/Logger.cpp
 )
 target_include_directories(pam_pcbiounlock PRIVATE common-cpp/src common-cpp/deps/headers common-cpp/deps/spdlog/include)
-target_link_libraries(pam_pcbiounlock PRIVATE pam bluetooth spdlog::spdlog OpenSSL::Crypto OpenSSL::SSL)
+target_link_libraries(pam_pcbiounlock PRIVATE pam spdlog::spdlog OpenSSL::Crypto OpenSSL::SSL ${PLATFORM_LIBS})

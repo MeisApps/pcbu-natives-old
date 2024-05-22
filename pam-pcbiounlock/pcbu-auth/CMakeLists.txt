@@ -3,12 +3,21 @@ cmake_minimum_required(VERSION 3.14)
 project(pcbu_auth)
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(Threads REQUIRED)
 find_package(OpenSSL 3 REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(libxcrypt IMPORTED_TARGET REQUIRED libxcrypt)
 add_subdirectory(common-cpp/deps/spdlog)
 
-add_compile_definitions(LINUX)
+if(APPLE)
+    add_compile_definitions(APPLE)
+    set(PLATFORM_LIBS "-framework Carbon" "-framework CoreServices")
+elseif(UNIX)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(libxcrypt IMPORTED_TARGET REQUIRED libxcrypt)
+
+    add_compile_definitions(LINUX)
+    set(PLATFORM_LIBS bluetooth PkgConfig::libxcrypt)
+endif()
+
 add_executable(pcbu_auth
         src/main.cpp
 
@@ -50,5 +59,5 @@ add_executable(pcbu_auth
         common-cpp/src/Logger.cpp
 )
 target_include_directories(pcbu_auth PRIVATE common-cpp/src common-cpp/deps/headers common-cpp/deps/spdlog/include)
-target_link_libraries(pcbu_auth PRIVATE pthread bluetooth spdlog::spdlog PkgConfig::libxcrypt OpenSSL::Crypto OpenSSL::SSL)
+target_link_libraries(pcbu_auth PRIVATE Threads::Threads spdlog::spdlog OpenSSL::Crypto OpenSSL::SSL ${PLATFORM_LIBS})
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
