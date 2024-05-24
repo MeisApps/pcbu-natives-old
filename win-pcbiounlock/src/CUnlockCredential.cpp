@@ -13,7 +13,6 @@
 #include <unknwn.h>
 #include "guid.h"
 
-#include "WinUtils.h"
 #include "I18n.h"
 
 CUnlockCredential::CUnlockCredential():
@@ -84,7 +83,7 @@ HRESULT CUnlockCredential::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
     // Initialize the String value of all the fields.
     if (SUCCEEDED(hr))
     {
-        hr = SHStrDupW(WinUtils::StringToWideString(I18n::Get("initializing")).c_str(), &_rgFieldStrings[SFI_MESSAGE]);
+        hr = SHStrDupW(Utils::StringToWideString(I18n::Get("initializing")).c_str(), &_rgFieldStrings[SFI_MESSAGE]);
     }
     if (SUCCEEDED(hr))
     {
@@ -131,7 +130,7 @@ void CUnlockCredential::SetUnlockData(const UnlockResult& result)
 
 void CUnlockCredential::UpdateMessage(const std::string& message)
 {
-    SHStrDupW(WinUtils::StringToWideString(message).c_str(), &_rgFieldStrings[SFI_MESSAGE]);
+    SHStrDupW(Utils::StringToWideString(message).c_str(), &_rgFieldStrings[SFI_MESSAGE]);
     if (_pCredProvCredentialEvents) {
         _pCredProvCredentialEvents->SetFieldString(this, SFI_MESSAGE, _rgFieldStrings[SFI_MESSAGE]);
     }
@@ -411,7 +410,7 @@ HRESULT CUnlockCredential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIAL
     }
     else if (_unlockResult.state == UnlockState::SUCCESS)
     {
-        pwd = WinUtils::StringToWideString(_unlockResult.password);
+        pwd = Utils::StringToWideString(_unlockResult.password);
     }
     else
     {

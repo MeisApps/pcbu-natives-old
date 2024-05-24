@@ -17,16 +17,16 @@ static bool CheckPassword(const char* user, const char* password) {
 #ifdef LINUX
     struct passwd *passwdEntry = getpwnam(user);
     if (!passwdEntry) {
-        Logger::writeln("Failed to read passwd entry for user: ", std::string(user));
-        return 1;
+        Logger::WriteLn("Failed to read passwd entry for user: ", std::string(user));
+        return false;
     }
     if (strcmp(passwdEntry->pw_passwd, "x") != 0)
-        return strcmp(passwdEntry->pw_passwd, crypt(password, passwdEntry->pw_passwd));
+        return strcmp(passwdEntry->pw_passwd, crypt(password, passwdEntry->pw_passwd)) == 0;
 
     struct spwd *shadowEntry = getspnam(user);
     if (!shadowEntry) {
-        Logger::writeln("Failed to read shadow entry for user: " + std::string(user));
-        return 1;
+        Logger::WriteLn("Failed to read shadow entry for user: " + std::string(user));
+        return false;
     }
     return strcmp(shadowEntry->sp_pwdp, crypt(password, shadowEntry->sp_pwdp)) == 0;
 #endif
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    Logger::init();
+    Logger::Init();
     if(argc != 3) {
         printf("Invalid parameters.\n");
         return -1;
@@ -77,18 +77,23 @@ int main(int argc, char *argv[]) {
         if(strcmp(userName, result.device.userName.c_str()) == 0) {
             if(CheckPassword(userName, result.password.c_str())) {
                 //pam_set_item(pamh, PAM_AUTHTOK, result.additionalData.c_str());
+                Logger::Destroy();
                 return 0;
             }
         }
 
         auto errorMsg = I18n::Get("error_password");
-        Logger::writeln(errorMsg);
+        Logger::WriteLn(errorMsg);
         printf("%s\n", errorMsg.c_str());
+        Logger::Destroy();
         return 1;
     } else if(result.state == UnlockState::CANCELED) {
+        Logger::Destroy();
         return 1;
     } else if(result.state == UnlockState::TIMEOUT || result.state == UnlockState::CONNECT_ERROR) {
+        Logger::Destroy();
         return -1;
     }
+    Logger::Destroy();
     return 1;
 }

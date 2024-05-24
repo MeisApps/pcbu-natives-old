@@ -69,7 +69,7 @@ public:
             map = m_EnLangMap;
 
         if(!map.count(key)) {
-            Logger::writeln("Missing I18n key ", key);
+            Logger::WriteLn("Missing I18n key {}.", key);
             return key;
         }
         return fmt::format(map[key], args...);

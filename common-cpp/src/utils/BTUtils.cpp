@@ -88,21 +88,30 @@ int BTUtils::FindChannelSDP(const std::string& deviceAddress, uint8_t *uuid) {
 #endif
 
 #ifdef _WIN32
-int BTUtils::str2ba2(const char* straddr, BTH_ADDR* btaddr)
-{
-    int i;
+int BTUtils::str2ba(const char* straddr, BTH_ADDR* btaddr) {
     unsigned int aaddr[6];
-    BTH_ADDR tmpaddr = 0;
-
-    if (std::sscanf(straddr, "%02x:%02x:%02x:%02x:%02x:%02x",
-                    &aaddr[0], &aaddr[1], &aaddr[2],
-                    &aaddr[3], &aaddr[4], &aaddr[5]) != 6)
+    if (sscanf_s(straddr, "%02x:%02x:%02x:%02x:%02x:%02x",
+                 &aaddr[0], &aaddr[1], &aaddr[2],
+                 &aaddr[3], &aaddr[4], &aaddr[5]) != 6)
         return 1;
     *btaddr = 0;
-    for (i = 0; i < 6; i++) {
-        tmpaddr = (BTH_ADDR)(aaddr[i] & 0xff);
+    for (unsigned int i : aaddr) {
+        auto tmpaddr = static_cast<BTH_ADDR>(i & 0xff);
         *btaddr = ((*btaddr) << 8) + tmpaddr;
     }
+    return 0;
+}
+
+int BTUtils::ba2str(const BTH_ADDR btaddr, char* straddr) {
+    unsigned char bytes[6];
+    for (int i = 0; i < 6; i++) {
+        bytes[5 - i] = static_cast<unsigned char>((btaddr >> (i * 8)) & 0xff);
+    }
+
+    if (sprintf_s(straddr, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
+        bytes[0], bytes[1], bytes[2],
+        bytes[3], bytes[4], bytes[5]) != 6)
+        return 1;
     return 0;
 }
 #endif

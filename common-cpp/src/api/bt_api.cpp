@@ -1,18 +1,15 @@
 #include "bt_api.h"
 
 #include <cstdlib>
-#include "Logger.h"
-
-#ifdef _WIN32
-#include <iostream>
 #include <vector>
 
+#include "Logger.h"
+#include "utils/BTUtils.h"
+
+#ifdef _WIN32
 #include <WinSock2.h>
 #include <ws2bth.h>
 #include <bluetoothapis.h>
-
-#include <locale>
-#include <codecvt>
 #define DEVICE_LIMIT 20
 #endif
 #ifdef LINUX
@@ -21,41 +18,6 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 #endif
-
-#ifdef _WIN32
-int str2ba(const char* straddr, BTH_ADDR* btaddr)
-{
-    int i;
-    unsigned int aaddr[6];
-    BTH_ADDR tmpaddr = 0;
-
-    if (std::sscanf(straddr, "%02x:%02x:%02x:%02x:%02x:%02x",
-        &aaddr[0], &aaddr[1], &aaddr[2],
-        &aaddr[3], &aaddr[4], &aaddr[5]) != 6)
-        return 1;
-    *btaddr = 0;
-    for (i = 0; i < 6; i++) {
-        tmpaddr = (BTH_ADDR)(aaddr[i] & 0xff);
-        *btaddr = ((*btaddr) << 8) + tmpaddr;
-    }
-    return 0;
-}
-
-int ba2str(const BTH_ADDR btaddr, char* straddr)
-{
-    unsigned char bytes[6];
-    for (int i = 0; i < 6; i++) {
-        bytes[5 - i] = (unsigned char)((btaddr >> (i * 8)) & 0xff);
-    }
-
-    if (std::sprintf(straddr, "%02X:%02X:%02X:%02X:%02X:%02X",
-        bytes[0], bytes[1], bytes[2],
-        bytes[3], bytes[4], bytes[5]) != 6)
-        return 1;
-    return 0;
-}
-#endif // _WIN32
-
 
 extern "C" {
     API bool bt_is_available() {
@@ -82,7 +44,7 @@ extern "C" {
 #endif
 #ifdef APPLE
 #warning Not implemented on Apple.
-        return true;
+        return false;
 #endif
     }
 
@@ -92,14 +54,12 @@ extern "C" {
         *count = 0;
 #ifdef _WIN32
         WSADATA data;
-        int result;
-        result = WSAStartup(MAKEWORD(2, 2), &data);
+        int result = WSAStartup(MAKEWORD(2, 2), &data);
         if (result != 0) {
             return nullptr;
         }
 
-        WSAQUERYSETW queryset;
-        memset(&queryset, 0, sizeof(WSAQUERYSETW));
+        WSAQUERYSETW queryset{};
         queryset.dwSize = sizeof(WSAQUERYSETW);
         queryset.dwNameSpace = NS_BTH;
 
@@ -109,13 +69,11 @@ extern "C" {
             return nullptr;
         }
 
-        BYTE buffer[4096];
-        memset(buffer, 0, sizeof(buffer));
+        BYTE buffer[4096]{};
         DWORD bufferLength = sizeof(buffer);
-        WSAQUERYSETW* pResults = (WSAQUERYSETW*)&buffer;
+        auto pResults = reinterpret_cast<WSAQUERYSETW*>(&buffer);
 
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        auto devicesPtr = (BluetoothDevice*)malloc(sizeof(BluetoothDevice) * DEVICE_LIMIT);
+        auto devicesPtr = static_cast<BluetoothDevice*>(malloc(sizeof(BluetoothDevice) * DEVICE_LIMIT));
         if (devicesPtr == nullptr) {
             WSALookupServiceEnd(hLookup);
             return nullptr;
@@ -129,11 +87,11 @@ extern "C" {
 
             result = WSALookupServiceNextW(hLookup, LUP_RETURN_NAME | LUP_CONTAINERS | LUP_RETURN_ADDR | LUP_FLUSHCACHE | LUP_RETURN_TYPE | LUP_RETURN_BLOB | LUP_RES_SERVICE, &bufferLength, pResults);
             if (result == 0) {
-                auto pBtAddr = (SOCKADDR_BTH*)(pResults->lpcsaBuffer->RemoteAddr.lpSockaddr);
+                auto pBtAddr = reinterpret_cast<SOCKADDR_BTH*>(pResults->lpcsaBuffer->RemoteAddr.lpSockaddr);
                 char addr[18] = { 0 };
-                ba2str(pBtAddr->btAddr, addr);
+                BTUtils::ba2str(pBtAddr->btAddr, addr);
 
-                auto name = converter.to_bytes(pResults->lpszServiceInstanceName);
+                auto name = Utils::WideStringToString(pResults->lpszServiceInstanceName);
                 auto address = std::string(addr);
 
                 strcpy_s(devicesPtr[idx].name, 255, name.c_str());
@@ -207,7 +165,7 @@ extern "C" {
             return nullptr;
         *count = 0;
 #ifdef _WIN32
-        auto devicesPtr = (BluetoothDevice*)malloc(sizeof(BluetoothDevice) * DEVICE_LIMIT);
+        auto devicesPtr = static_cast<BluetoothDevice*>(malloc(sizeof(BluetoothDevice) * DEVICE_LIMIT));
         if(devicesPtr == nullptr)
             return nullptr;
         memset(devicesPtr, 0, sizeof(BluetoothDevice) * DEVICE_LIMIT);
@@ -229,7 +187,6 @@ extern "C" {
             return nullptr;
         }
 
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
         int idx{};
         do {
             char addr[18] = { 0 };
@@ -240,7 +197,7 @@ extern "C" {
                      deviceInfo.Address.rgBytes[2],
                      deviceInfo.Address.rgBytes[1],
                      deviceInfo.Address.rgBytes[0]);
-            auto name = converter.to_bytes(deviceInfo.szName);
+            auto name = Utils::WideStringToString(deviceInfo.szName);
             auto address = std::string(addr);
 
             strcpy_s(devicesPtr[idx].name, 255, name.c_str());
@@ -264,7 +221,7 @@ extern "C" {
                  &deviceAddress.rgBytes[5], &deviceAddress.rgBytes[4], &deviceAddress.rgBytes[3],
                  &deviceAddress.rgBytes[2], &deviceAddress.rgBytes[1], &deviceAddress.rgBytes[0]);
 
-        Logger::println("Scanning for pairing device...");
+        Logger::PrintLn("Scanning for pairing device...");
         BLUETOOTH_DEVICE_SEARCH_PARAMS searchParams = {
                 sizeof(searchParams),
                 TRUE,
@@ -277,7 +234,7 @@ extern "C" {
         };
         HANDLE searchHandle = BluetoothFindFirstDevice(&searchParams, &deviceInfo);
         if (!searchHandle) {
-            Logger::println("Error: Bluetooth device search failed.");
+            Logger::PrintLn("Error: Bluetooth device search failed.");
             return false;
         }
         bool deviceFound = false;
@@ -289,19 +246,19 @@ extern "C" {
         } while (BluetoothFindNextDevice(searchHandle, &deviceInfo));
         BluetoothFindDeviceClose(searchHandle);
         if (!deviceFound) {
-            Logger::println("Error: Device with address {} not found.", device->address);
+            Logger::PrintLn("Error: Device with address {} not found.", device->address);
             return false;
         }
 
-        Logger::println("Starting pairing...");
+        Logger::PrintLn("Starting pairing...");
         HWND hwnd = FindWindowA(nullptr, "PC Bio Unlock");
         DWORD result = BluetoothAuthenticateDevice(hwnd, nullptr, &deviceInfo, nullptr, 0);
         if (result != ERROR_SUCCESS && result != ERROR_NO_MORE_ITEMS) {
-            Logger::println("Error: Device pairing failed with error code {}.", result);
+            Logger::PrintLn("Error: Device pairing failed with error code {}.", result);
             return false;
         }
 
-        Logger::println("Device paired successfully.");
+        Logger::PrintLn("Device paired successfully.");
         return true;
 #else
         return true;

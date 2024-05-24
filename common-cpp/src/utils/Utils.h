@@ -1,9 +1,6 @@
 #ifndef PAM_PCBIOUNLOCK_UTILS_H
 #define PAM_PCBIOUNLOCK_UTILS_H
 
-#ifdef _WIN32
-#pragma warning(disable:4996)
-#endif
 #define SAFE_FREE(x) if(x != nullptr) free(x); x = nullptr;
 
 #include <chrono>
@@ -28,6 +25,11 @@ public:
     static bool StringStartsWith(std::wstring const& value, std::wstring const& beginning);
     static bool StringEndsWith(std::string const &value, std::string const &ending);
     static std::string ToHexString(const uint8_t *data, size_t data_len);
+
+#ifdef _WIN32
+    static std::wstring StringToWideString(const std::string& string);
+    static std::string WideStringToString(const std::wstring& wide_string);
+#endif
 
 private:
     Utils() = default;

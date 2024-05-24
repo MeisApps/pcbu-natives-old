@@ -39,7 +39,7 @@ std::vector<PairedDevice> PairedDeviceStorage::GetDevices() {
         }
     }
     catch (const std::exception& ex) {
-        Logger::writeln("Failed reading paired device data! ", std::string(ex.what()));
+        Logger::WriteLn("Failed reading paired device data. {}", std::string(ex.what()));
     }
     return result;
 }

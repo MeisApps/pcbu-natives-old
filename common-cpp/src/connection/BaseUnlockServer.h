@@ -41,7 +41,7 @@ protected:
     bool m_HasConnection{};
     std::string m_UserName{};
 
-    UnlockState m_UnlockState{};
+    std::atomic<UnlockState> m_UnlockState{};
     PairedDevice m_PairedDevice{};
     UnlockResponseData m_ResponseData{};
 

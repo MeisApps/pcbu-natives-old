@@ -31,13 +31,13 @@ bool TCPUnlockServer::Start() {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        Logger::writeln("startup failed");
+        Logger::WriteLn("startup failed");
         return false;
     }
 #endif
 
     if ((m_ServerSocket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        Logger::writeln("socket failed.");
+        Logger::WriteLn("socket failed.");
         return false;
     }
 
@@ -45,17 +45,17 @@ bool TCPUnlockServer::Start() {
     if (setsockopt(m_ServerSocket, SOL_SOCKET,
                    SO_REUSEADDR, (char*)&opt,
                    sizeof(opt))) {
-        Logger::writeln("setsockopt failed.");
+        Logger::WriteLn("setsockopt failed.");
         return false;
     }
 
     if (bind(m_ServerSocket, (struct sockaddr*)&m_Address, sizeof(m_Address)) < 0) {
-        Logger::writeln("bind failed.");
+        Logger::WriteLn("bind failed.");
         return false;
     }
 
     if (listen(m_ServerSocket, 1) == -1) {
-        Logger::writeln("listen failed.");
+        Logger::WriteLn("listen failed.");
         return false;
     }
 
@@ -124,7 +124,7 @@ void TCPUnlockServer::AcceptThread() {
     uint8_t buffer[1024] = {};
     auto bytesRead = read(m_ClientSocket, buffer, 1024);
     if(bytesRead <= 0) {
-        Logger::writeln("Response read error !\n");
+        Logger::WriteLn("Response read error !\n");
         m_UnlockState = UnlockState::CANCELED;
 
         SAFE_CLOSE(m_ClientSocket);

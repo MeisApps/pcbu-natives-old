@@ -17,7 +17,6 @@
 #include "guid.h"
 
 #include "storage/PairedDevice.h"
-#include "WinUtils.h"
 
 CSampleProvider::CSampleProvider() :
     _cRef(1),
@@ -28,7 +27,7 @@ CSampleProvider::CSampleProvider() :
     _cpus()
 {
     DllAddRef();
-    Logger::init();
+    Logger::Init();
 }
 
 CSampleProvider::~CSampleProvider()
@@ -41,8 +40,8 @@ CSampleProvider::~CSampleProvider()
         _pCredProviderUserArray->Release();
         _pCredProviderUserArray = nullptr;
     }
-
     DllRelease();
+    Logger::Destroy();
 }
 
 // SetUsageScenario is the provider's cue that it's going to be asked for tiles
@@ -275,7 +274,7 @@ HRESULT CSampleProvider::_EnumerateCredentials()
                     hr = pCredUser->GetStringValue(PKEY_Identity_QualifiedUserName, &userDomain);
                     if (SUCCEEDED(hr))
                     {
-                        auto userDomainStr = WinUtils::WideStringToString(std::wstring(userDomain));
+                        auto userDomainStr = Utils::WideStringToString(std::wstring(userDomain));
                         auto userDevices = PairedDeviceStorage::GetDevicesForUser(userDomainStr);
                         for(auto userDevice : userDevices)
                         {
@@ -309,7 +308,7 @@ HRESULT CSampleProvider::_EnumerateCredentials()
             if(_pCredentials.empty())
             {
                 hr = E_ABORT;
-                Logger::writeln("Could not find any paired user.");
+                Logger::WriteLn("Could not find any paired user.");
             }
         }
     }

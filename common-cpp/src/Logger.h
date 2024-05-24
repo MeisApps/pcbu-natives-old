@@ -16,18 +16,19 @@
 
 class Logger {
 public:
-    static void init();
+    static void Init();
+    static void Destroy();
 
-    static void writeln(const std::string& message);
+    static void WriteLn(const std::string& message);
     template<typename ...T>
-    static void writeln(const std::string& arg, T&&... args) {
-        writeln(fmt::format(arg, args...));
+    static void WriteLn(const std::string& arg, T&&... args) {
+        WriteLn(fmt::format(arg, args...));
     }
 
-    static void println(const std::string& message);
+    static void PrintLn(const std::string& message);
     template<typename ...T>
-    static void println(const std::string& arg, T&&... args) {
-        println(fmt::format(arg, args...));
+    static void PrintLn(const std::string& arg, T&&... args) {
+        PrintLn(fmt::format(arg, args...));
     }
 private:
     Logger() = default;

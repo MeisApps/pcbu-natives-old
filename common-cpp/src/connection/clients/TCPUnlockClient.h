@@ -15,7 +15,11 @@ public:
 
     bool Start() override;
     void Stop() override;
+
 private:
+    std::vector<uint8_t> ReadPacket() const;
+    void WritePacket(const std::vector<uint8_t>& data) const;
+
     void ConnectThread();
 
     std::string m_IP;

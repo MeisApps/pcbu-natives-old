@@ -11,7 +11,6 @@
 #include <ws2ipdef.h>
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
-#pragma comment(lib, "IPHLPAPI.lib")
 #else
 #include <ifaddrs.h>
 #include <netinet/in.h>
@@ -33,14 +32,14 @@ extern "C" {
 
     API IpAndMac *get_local_ip_and_mac() {
     #ifdef _WIN32
-        IP_ADAPTER_ADDRESSES* adapter_addresses(NULL);
-        IP_ADAPTER_ADDRESSES* adapter(NULL);
+        IP_ADAPTER_ADDRESSES* adapter_addresses(nullptr);
+        IP_ADAPTER_ADDRESSES* adapter(nullptr);
         std::vector<std::wstring> filterAdapterNames = { L"vEthernet (WSL", L"VMware Network Adapter", L"VirtualBox" };
 
         DWORD adapter_addresses_buffer_size = 16 * 1024;
         for (int attempts = 0; attempts != 3; ++attempts) {
-            adapter_addresses = (IP_ADAPTER_ADDRESSES*)malloc(adapter_addresses_buffer_size);
-            if (adapter_addresses == 0)
+            adapter_addresses = static_cast<IP_ADAPTER_ADDRESSES *>(malloc(adapter_addresses_buffer_size));
+            if (adapter_addresses == nullptr)
                 return nullptr;
 
             DWORD error = ::GetAdaptersAddresses(
@@ -49,24 +48,23 @@ extern "C" {
                 GAA_FLAG_SKIP_MULTICAST |
                 GAA_FLAG_SKIP_DNS_SERVER |
                 GAA_FLAG_SKIP_FRIENDLY_NAME,
-                NULL,
+                nullptr,
                 adapter_addresses,
                 &adapter_addresses_buffer_size);
             if (ERROR_SUCCESS == error) {
                 break;
             } else if (ERROR_BUFFER_OVERFLOW == error) {
                 free(adapter_addresses);
-                adapter_addresses = NULL;
+                adapter_addresses = nullptr;
                 continue;
             } else {
                 free(adapter_addresses);
-                adapter_addresses = NULL;
+                adapter_addresses = nullptr;
                 return nullptr;
             }
         }
 
-        // Iterate through all of the adapters
-        for (adapter = adapter_addresses; NULL != adapter; adapter = adapter->Next) {
+        for (adapter = adapter_addresses; nullptr != adapter; adapter = adapter->Next) {
             if (IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
                 continue;
 
@@ -75,10 +73,10 @@ extern "C" {
                 if (Utils::StringStartsWith(ifName, filterStart))
                     goto adapterEnd;
 
-            for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; NULL != address; address = address->Next) {
+            for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; nullptr != address; address = address->Next) {
                 auto family = address->Address.lpSockaddr->sa_family;
                 if (AF_INET == family) { // IPv4
-                    SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+                    auto ipv4 = reinterpret_cast<SOCKADDR_IN *>(address->Address.lpSockaddr);
                     char str_buffer[INET_ADDRSTRLEN] = { 0 };
                     inet_ntop(AF_INET, &(ipv4->sin_addr), str_buffer, INET_ADDRSTRLEN);
 
@@ -86,10 +84,10 @@ extern "C" {
                     if (!std::regex_match(ifAddr, local_v4_regex))
                         continue;
 
-                    auto data = (IpAndMac *)malloc(sizeof(IpAndMac));
+                    auto data = static_cast<IpAndMac *>(malloc(sizeof(IpAndMac)));
                     if (data == nullptr)
                         goto end;
-                    strncpy(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
+                    strncpy_s(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
                     snprintf(data->macAddr, sizeof(data->macAddr),
                         "%02X:%02X:%02X:%02X:%02X:%02X",
                         adapter->PhysicalAddress[0], adapter->PhysicalAddress[1],
@@ -97,7 +95,7 @@ extern "C" {
                         adapter->PhysicalAddress[4], adapter->PhysicalAddress[5]);
 
                     free(adapter_addresses);
-                    adapter_addresses = NULL;
+                    adapter_addresses = nullptr;
                     return data;
                 }
             }
@@ -107,7 +105,7 @@ extern "C" {
 
         end:
         free(adapter_addresses);
-        adapter_addresses = NULL;
+        adapter_addresses = nullptr;
         return nullptr;
     #else
         struct ifaddrs* ifAddrStruct = nullptr;

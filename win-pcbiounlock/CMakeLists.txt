@@ -21,7 +21,6 @@ add_library(win-pcbiounlock SHARED
         src/win-pcbiounlock.def
         src/resource.rc
         src/common.h
-        src/WinUtils.h
         src/guid.h
         src/guid.cpp
         src/Dll.h
@@ -74,4 +73,4 @@ add_library(win-pcbiounlock SHARED
 )
 
 target_include_directories(win-pcbiounlock PUBLIC common-cpp/src common-cpp/deps/headers common-cpp/deps/spdlog/include)
-target_link_libraries(win-pcbiounlock PUBLIC Credui Shlwapi Secur32 Ws2_32 Bthprops spdlog::spdlog OpenSSL::Crypto OpenSSL::SSL)
+target_link_libraries(win-pcbiounlock PUBLIC Credui Shlwapi Secur32 Ws2_32 Bthprops SensAPI IPHLPAPI spdlog::spdlog OpenSSL::Crypto OpenSSL::SSL)

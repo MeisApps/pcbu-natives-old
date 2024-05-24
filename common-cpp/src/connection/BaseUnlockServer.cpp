@@ -47,7 +47,7 @@ std::string BaseUnlockServer::GetUnlockInfoPacket() {
     size_t encLen{};
     auto cryptResult = CryptUtils::EncryptAESPacket(serverDataPtr, encServerDataStr.size(), &encLen, m_PairedDevice.encryptionKey, &encData);
     if(cryptResult != PacketCryptResult::OK) {
-        Logger::writeln("Encrypt error.");
+        Logger::WriteLn("Encrypt error.");
         return {};
     }
 
@@ -61,6 +61,12 @@ std::string BaseUnlockServer::GetUnlockInfoPacket() {
 }
 
 void BaseUnlockServer::OnResponseReceived(uint8_t *buffer, size_t buffer_size) {
+    if(buffer == nullptr || buffer_size == 0) {
+        Logger::WriteLn("Empty data received!", buffer_size);
+        m_UnlockState = UnlockState::DATA_ERROR;
+        return;
+    }
+
     uint8_t *decData{};
     size_t decLen{};
     auto cryptResult = CryptUtils::DecryptAESPacket(buffer, buffer_size, &decLen, m_PairedDevice.encryptionKey, &decData);
@@ -82,12 +88,12 @@ void BaseUnlockServer::OnResponseReceived(uint8_t *buffer, size_t buffer_size) {
 
         switch (cryptResult) {
             case INVALID_TIMESTAMP: {
-                Logger::writeln("Invalid timestamp on AES data!");
+                Logger::WriteLn("Invalid timestamp on AES data!");
                 m_UnlockState = UnlockState::TIME_ERROR;
                 break;
             }
             default: {
-                Logger::writeln("Invalid data received!");
+                Logger::WriteLn("Invalid data received! (Size={})", buffer_size);
                 m_UnlockState = UnlockState::DATA_ERROR;
                 break;
             }
@@ -111,7 +117,7 @@ void BaseUnlockServer::OnResponseReceived(uint8_t *buffer, size_t buffer_size) {
             m_UnlockState = UnlockState::UNK_ERROR;
         }
     } catch(std::exception&) {
-        Logger::writeln("Error parsing response data!");
+        Logger::WriteLn("Error parsing response data!");
         m_UnlockState = UnlockState::DATA_ERROR;
     }
 }

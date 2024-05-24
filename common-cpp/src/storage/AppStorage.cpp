@@ -15,7 +15,7 @@ PCBUAppSettings AppStorage::Get() {
         return settings;
     }
     catch (...) {
-        Logger::writeln("Failed reading app storage!");
+        Logger::WriteLn("Failed reading app storage!");
         auto def = PCBUAppSettings();
         def.language = "auto";
         def.serverIP = "auto";

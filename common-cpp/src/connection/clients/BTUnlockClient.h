@@ -1,7 +1,6 @@
 #ifndef PAM_PCBIOUNLOCK_BTUNLOCKCLIENT_H
 #define PAM_PCBIOUNLOCK_BTUNLOCKCLIENT_H
 
-
 #include "../BaseUnlockServer.h"
 
 #ifdef _WIN32
@@ -16,7 +15,11 @@ public:
 
     bool Start() override;
     void Stop() override;
+
 private:
+    std::vector<uint8_t> ReadPacket() const;
+    void WritePacket(const std::vector<uint8_t>& data) const;
+
     void ConnectThread();
 
     int m_Channel;

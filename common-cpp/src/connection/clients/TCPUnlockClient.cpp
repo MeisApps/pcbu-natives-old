@@ -33,7 +33,7 @@ bool TCPUnlockClient::Start() {
 #ifdef _WIN32
     WSADATA wsa{};
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        Logger::writeln("WSAStartup failed.");
+        Logger::WriteLn("WSAStartup failed.");
         return false;
     }
 #endif
@@ -57,26 +57,67 @@ void TCPUnlockClient::Stop() {
         m_AcceptThread.join();
 }
 
+std::vector<uint8_t> TCPUnlockClient::ReadPacket() const {
+    std::vector<uint8_t> lenBuffer{};
+    lenBuffer.resize(sizeof(uint16_t));
+    uint16_t lenBytesRead = 0;
+    while (lenBytesRead < sizeof(uint16_t)) {
+        int result = read(m_ClientSocket, lenBuffer.data() + lenBytesRead, sizeof(uint16_t) - lenBytesRead);
+        if (result <= 0) {
+            Logger::WriteLn("Reading length failed.");
+            return {};
+        }
+        lenBytesRead += result;
+    }
+
+    uint16_t packetSize{};
+    std::memcpy(&packetSize, lenBuffer.data(), sizeof(uint16_t));
+    packetSize = ntohs(packetSize);
+    if(packetSize == 0) {
+        Logger::WriteLn("Empty packet received.");
+        return {};
+    }
+
+    std::vector<uint8_t> buffer{};
+    buffer.resize(packetSize);
+    uint16_t bytesRead = 0;
+    while (bytesRead < packetSize) {
+        int result = read(m_ClientSocket, buffer.data() + bytesRead, packetSize - bytesRead);
+        if (result <= 0) {
+            Logger::WriteLn("Reading data failed. (Len={})", packetSize);
+            return {};
+        }
+        bytesRead += result;
+    }
+    return buffer;
+}
+
+void TCPUnlockClient::WritePacket(const std::vector<uint8_t>& data) const {
+    uint16_t packetSize = htons(static_cast<uint16_t>(data.size()));
+    write(m_ClientSocket, reinterpret_cast<const char*>(&packetSize), sizeof(packetSize));
+    write(m_ClientSocket, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()));
+}
+
 void TCPUnlockClient::ConnectThread() {
     struct sockaddr_in serv_addr{};
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons((u_short)m_Port);
 
     if (inet_pton(AF_INET, m_IP.c_str(), &serv_addr.sin_addr) <= 0) {
-        Logger::writeln("Invalid IP address.");
+        Logger::WriteLn("Invalid IP address.");
         m_IsRunning = false;
         m_UnlockState = UnlockState::UNK_ERROR;
         return;
     }
 
     if ((m_ClientSocket = socket(AF_INET, SOCK_STREAM, 0)) == SOCKET_INVALID) {
-        Logger::writeln("socket failed.");
+        Logger::WriteLn("socket() failed.");
         m_IsRunning = false;
         m_UnlockState = UnlockState::UNK_ERROR;
         return;
     }
 
-    int result = connect(m_ClientSocket, (struct sockaddr*)&serv_addr,sizeof(serv_addr));
+    int result = connect(m_ClientSocket, reinterpret_cast<struct sockaddr *>(&serv_addr),sizeof(serv_addr));
     if (result == 0) {
         m_HasConnection = true;
         auto serverDataStr = GetUnlockInfoPacket();
@@ -86,17 +127,12 @@ void TCPUnlockClient::ConnectThread() {
             SAFE_CLOSE(m_ClientSocket);
             return;
         }
-        write(m_ClientSocket, serverDataStr.c_str(), (int)serverDataStr.size());
 
-        // Read response
-        char buffer[1024]{};
-        long bytesRead{};
-        std::vector<uint8_t> readData{};
-        while((bytesRead = read(m_ClientSocket, buffer, sizeof(buffer))) > 0)
-            readData.insert(readData.end(), buffer, buffer + bytesRead);
-        OnResponseReceived(readData.data(), readData.size());
+        WritePacket({serverDataStr.begin(), serverDataStr.end()});
+        auto response = ReadPacket();
+        OnResponseReceived(response.data(), response.size());
     } else {
-        Logger::writeln("Connect failed.");
+        Logger::WriteLn("connect() failed.");
         m_UnlockState = UnlockState::CONNECT_ERROR;
     }
 

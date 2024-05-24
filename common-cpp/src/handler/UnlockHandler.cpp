@@ -42,7 +42,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
                 break;
         }
         if(server == nullptr) {
-            Logger::writeln("Invalid pairing method.");
+            Logger::WriteLn("Invalid pairing method.");
             continue;
         }
         server->SetUnlockInfo(authUser, authProgram);
@@ -50,7 +50,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     }
     if(servers.empty()) {
         auto errorMsg = I18n::Get("error_not_paired", authUser);
-        Logger::writeln(errorMsg);
+        Logger::WriteLn(errorMsg);
         m_PrintMessage(errorMsg);
         return UnlockResult(UnlockState::NOT_PAIRED_ERROR);
     }
@@ -95,7 +95,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
 UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::shared_future<UnlockResult>& future, std::atomic<bool> *isRunning) {
     if(!server->Start()) {
         auto errorMsg = I18n::Get("error_start_handler");
-        Logger::writeln(errorMsg);
+        Logger::WriteLn(errorMsg);
         m_PrintMessage(errorMsg);
         return UnlockResult(UnlockState::START_ERROR);
     }

@@ -118,9 +118,9 @@ public:
     virtual ~CUnlockCredential();
     long                                    _cRef;
     CREDENTIAL_PROVIDER_USAGE_SCENARIO      _cpus;                                          // The usage scenario for which we were enumerated.
-    CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR    _rgCredProvFieldDescriptors[SFI_NUM_FIELDS];    // An array holding the type and name of each field in the tile.
-    FIELD_STATE_PAIR                        _rgFieldStatePairs[SFI_NUM_FIELDS];             // An array holding the state of each field in the tile.
-    PWSTR                                   _rgFieldStrings[SFI_NUM_FIELDS];                // An array holding the string value of each field. This is different from the name of the field held in _rgCredProvFieldDescriptors.
+    CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR    _rgCredProvFieldDescriptors[SFI_NUM_FIELDS]{};    // An array holding the type and name of each field in the tile.
+    FIELD_STATE_PAIR                        _rgFieldStatePairs[SFI_NUM_FIELDS]{};             // An array holding the state of each field in the tile.
+    PWSTR                                   _rgFieldStrings[SFI_NUM_FIELDS]{};                // An array holding the string value of each field. This is different from the name of the field held in _rgCredProvFieldDescriptors.
     PWSTR                                   _pszUserSid;
     PWSTR                                   _pszQualifiedUserName;                          // The user name that's used to pack the authentication buffer
     ICredentialProviderCredentialEvents2*    _pCredProvCredentialEvents;                    // Used to update fields.
@@ -129,8 +129,8 @@ public:
     DWORD                                   _dwComboIndex;                                  // Tracks the current index of our combobox.
     bool                                    _fShowControls;                                 // Tracks the state of our show/hide controls link.
     bool                                    _fIsLocalUser;                                  // If the cred prov is assosiating with a local user tile
-    CSampleProvider *_pCredentialProvider;
-    CUnlockListener *_pUnlockListener;
+    CSampleProvider *_pCredentialProvider{};
+    CUnlockListener *_pUnlockListener{};
     UnlockResult _unlockResult;
-    bool _isSelected;
+    bool _isSelected{};
 };

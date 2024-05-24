@@ -38,7 +38,7 @@ bool BTUnlockClient::Start() {
 #ifdef _WIN32
     WSADATA wsa{};
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        Logger::writeln("WSAStartup failed.");
+        Logger::WriteLn("WSAStartup failed.");
         return false;
     }
 #endif
@@ -65,6 +65,47 @@ void BTUnlockClient::Stop() {
 #endif
 }
 
+std::vector<uint8_t> BTUnlockClient::ReadPacket() const {
+    std::vector<uint8_t> lenBuffer{};
+    lenBuffer.resize(sizeof(uint16_t));
+    uint16_t lenBytesRead = 0;
+    while (lenBytesRead < sizeof(uint16_t)) {
+        int result = read(m_ClientSocket, lenBuffer.data() + lenBytesRead, sizeof(uint16_t) - lenBytesRead);
+        if (result <= 0) {
+            Logger::WriteLn("Reading length failed.");
+            return {};
+        }
+        lenBytesRead += result;
+    }
+
+    uint16_t packetSize{};
+    std::memcpy(&packetSize, lenBuffer.data(), sizeof(uint16_t));
+    packetSize = ntohs(packetSize);
+    if(packetSize == 0) {
+        Logger::WriteLn("Empty packet received.");
+        return {};
+    }
+
+    std::vector<uint8_t> buffer{};
+    buffer.resize(packetSize);
+    uint16_t bytesRead = 0;
+    while (bytesRead < packetSize) {
+        int result = read(m_ClientSocket, buffer.data() + bytesRead, packetSize - bytesRead);
+        if (result <= 0) {
+            Logger::WriteLn("Reading data failed. (Len={})", packetSize);
+            return {};
+        }
+        bytesRead += result;
+    }
+    return buffer;
+}
+
+void BTUnlockClient::WritePacket(const std::vector<uint8_t>& data) const {
+    uint16_t packetSize = htons(static_cast<uint16_t>(data.size()));
+    write(m_ClientSocket, reinterpret_cast<const char*>(&packetSize), sizeof(packetSize));
+    write(m_ClientSocket, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()));
+}
+
 void BTUnlockClient::ConnectThread() {
 #ifdef LINUX
     // 62182bf7-97c8-45f9-aa2c-53c5f2008bdf
@@ -82,7 +123,7 @@ void BTUnlockClient::ConnectThread() {
 #ifndef APPLE
     m_ClientSocket = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
     if(m_ClientSocket == SOCKET_INVALID) {
-        Logger::writeln("Bluetooth socket failed.");
+        Logger::WriteLn("Bluetooth socket() failed.");
         m_IsRunning = false;
         m_UnlockState = UnlockState::UNK_ERROR;
         return;
@@ -94,7 +135,7 @@ void BTUnlockClient::ConnectThread() {
 #ifdef _WIN32
     GUID guid = { 0x62182bf7, 0x97c8, 0x45f9, { 0xaa, 0x2c, 0x53, 0xc5, 0xf2, 0x00, 0x8b, 0xdf } };
     BTH_ADDR addr;
-    BTUtils::str2ba2(m_DeviceAddress.c_str(), &addr);
+    BTUtils::str2ba(m_DeviceAddress.c_str(), &addr);
 
     SOCKADDR_BTH address{};
     address.addressFamily = AF_BTH;
@@ -119,17 +160,12 @@ void BTUnlockClient::ConnectThread() {
             SAFE_CLOSE(m_ClientSocket);
             return;
         }
-        write(m_ClientSocket, serverDataStr.c_str(), (int)serverDataStr.size());
 
-        // Read response
-        char buffer[1024]{};
-        long bytesRead{};
-        std::vector<uint8_t> readData{};
-        while((bytesRead = read(m_ClientSocket, buffer, sizeof(buffer))) > 0)
-            readData.insert(readData.end(), buffer, buffer + bytesRead);
-        OnResponseReceived(readData.data(), readData.size());
+        WritePacket({serverDataStr.begin(), serverDataStr.end()});
+        auto response = ReadPacket();
+        OnResponseReceived(response.data(), response.size());
     } else {
-        Logger::writeln("Bluetooth connect failed.");
+        Logger::WriteLn("Bluetooth connect() failed.");
         m_UnlockState = UnlockState::CONNECT_ERROR;
     }
 

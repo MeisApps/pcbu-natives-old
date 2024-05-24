@@ -15,7 +15,6 @@
 #include "helpers.h"
 
 #include "I18n.h"
-#include "WinUtils.h"
 
 // The indexes of each of the fields in our credential provider's tiles. Note that we're
 // using each of the nine available field types here.
@@ -55,7 +54,7 @@ static const FIELD_STATE_PAIR s_rgFieldStatePairs[] =
 // The first field is the index of the field.
 // The second is the type of the field.
 // The third is the name of the field, NOT the value which will appear in the field.
-static std::wstring pwdStr = WinUtils::StringToWideString(I18n::Get("password"));
+static std::wstring pwdStr = Utils::StringToWideString(I18n::Get("password"));
 static const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR s_rgCredProvFieldDescriptors[] =
 {
     { SFI_TILEIMAGE,         CPFT_TILE_IMAGE,    L"Image",                      CPFG_CREDENTIAL_PROVIDER_LOGO  },

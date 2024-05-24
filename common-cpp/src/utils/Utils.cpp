@@ -2,27 +2,34 @@
 
 #include <openssl/rand.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 bool Utils::IsLittleEndian() {
     short int number = 0x1;
-    char *numPtr = (char*)&number;
-    return (numPtr[0] == 1);
+    const auto numPtr = reinterpret_cast<char *>(&number);
+    return numPtr[0] == 1;
 }
 
 int64_t Utils::GetCurrentTimeMillis() {
-    std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()
     );
-
     return ms.count();
 }
 
 std::string Utils::GetCurrentDateTime() {
     std::time_t rawTime;
-    std::tm* timeInfo;
     char buffer[80];
 
     std::time(&rawTime);
-    timeInfo = std::localtime(&rawTime);
+#ifdef _WIN32
+    tm* timeInfo{};
+    localtime_s(timeInfo, &rawTime);
+#else
+    std::tm* timeInfo = std::localtime(&rawTime);
+#endif
 
     std::strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeInfo);
     return {buffer};
@@ -30,7 +37,7 @@ std::string Utils::GetCurrentDateTime() {
 
 int Utils::GetRandomInt() {
     int val;
-    RAND_bytes((unsigned char *)&val, sizeof(int));
+    RAND_bytes(reinterpret_cast<unsigned char *>(&val), sizeof(int));
     return val;
 }
 
@@ -80,13 +87,14 @@ std::string Utils::ToHexString(const uint8_t *data, size_t data_len) {
     if(data == nullptr || data_len <= 0)
         return {};
 
-    auto buffer = (char *)malloc(data_len * 2 + 1);
+    auto bufferSize = data_len * 2 + 1;
+    auto buffer = static_cast<char *>(malloc(bufferSize));
     if (buffer == nullptr)
         return {};
 
     auto bufIdx = 0;
     for(size_t i = 0; i < data_len; i++) {
-        sprintf(buffer + bufIdx, "%02X", data[i]);
+        snprintf(buffer + bufIdx, bufferSize - bufIdx, "%02X", data[i]);
         bufIdx += 2;
     }
     buffer[bufIdx] = '\0';
@@ -95,3 +103,27 @@ std::string Utils::ToHexString(const uint8_t *data, size_t data_len) {
     free(buffer);
     return result;
 }
+
+#ifdef _WIN32
+std::wstring Utils::StringToWideString(const std::string& string) {
+    if (string.empty())
+        return L"";
+    const auto size_needed = MultiByteToWideChar(CP_UTF8, 0, &string.at(0), static_cast<int>(string.size()), nullptr, 0);
+    if (size_needed <= 0)
+        return L"";
+    std::wstring result(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &string.at(0), static_cast<int>(string.size()), &result.at(0), size_needed);
+    return result;
+}
+
+std::string Utils::WideStringToString(const std::wstring& wide_string) {
+    if (wide_string.empty())
+        return "";
+    const auto size_needed = WideCharToMultiByte(CP_UTF8, 0, &wide_string.at(0), static_cast<int>(wide_string.size()), nullptr, 0, nullptr, nullptr);
+    if (size_needed <= 0)
+        return "";
+    std::string result(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wide_string.at(0), static_cast<int>(wide_string.size()), &result.at(0), size_needed, nullptr, nullptr);
+    return result;
+}
+#endif
