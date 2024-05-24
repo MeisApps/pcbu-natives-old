@@ -1,5 +1,8 @@
 #include <iostream>
 
+#include "handler/UnlockHandler.h"
+#include "I18n.h"
+
 #ifdef LINUX
 #include <unistd.h>
 #include <pwd.h>
@@ -9,9 +12,6 @@
 #ifdef APPLE
 #include <CoreServices/CoreServices.h>
 #endif
-
-#include "handler/UnlockHandler.h"
-#include "I18n.h"
 
 static bool CheckPassword(const char* user, const char* password) {
 #ifdef LINUX
@@ -59,13 +59,12 @@ int main(int argc, char *argv[]) {
         printf("setuid(0) failed.\n");
         return -1;
     }
-
-    Logger::Init();
     if(argc != 3) {
         printf("Invalid parameters.\n");
         return -1;
     }
 
+    Logger::Init();
     auto userName = argv[1];
     auto serviceName = argv[2];
     std::function<void (const std::string&)> printMessage = [](const std::string& s) {
@@ -83,8 +82,8 @@ int main(int argc, char *argv[]) {
         }
 
         auto errorMsg = I18n::Get("error_password");
-        Logger::WriteLn(errorMsg);
         printf("%s\n", errorMsg.c_str());
+        Logger::WriteLn(errorMsg);
         Logger::Destroy();
         return 1;
     } else if(result.state == UnlockState::CANCELED) {

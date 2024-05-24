@@ -14,7 +14,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define SOCKET_INVALID -1
+#define SOCKET_INVALID (-1)
 #define SAFE_CLOSE(x) if(x != -1) { close(x); x = -1; }
 #endif
 
@@ -62,7 +62,7 @@ std::vector<uint8_t> TCPUnlockClient::ReadPacket() const {
     lenBuffer.resize(sizeof(uint16_t));
     uint16_t lenBytesRead = 0;
     while (lenBytesRead < sizeof(uint16_t)) {
-        int result = read(m_ClientSocket, lenBuffer.data() + lenBytesRead, sizeof(uint16_t) - lenBytesRead);
+        int result = (int)read(m_ClientSocket, lenBuffer.data() + lenBytesRead, sizeof(uint16_t) - lenBytesRead);
         if (result <= 0) {
             Logger::WriteLn("Reading length failed.");
             return {};
@@ -82,7 +82,7 @@ std::vector<uint8_t> TCPUnlockClient::ReadPacket() const {
     buffer.resize(packetSize);
     uint16_t bytesRead = 0;
     while (bytesRead < packetSize) {
-        int result = read(m_ClientSocket, buffer.data() + bytesRead, packetSize - bytesRead);
+        int result = (int)read(m_ClientSocket, buffer.data() + bytesRead, packetSize - bytesRead);
         if (result <= 0) {
             Logger::WriteLn("Reading data failed. (Len={})", packetSize);
             return {};
@@ -137,5 +137,6 @@ void TCPUnlockClient::ConnectThread() {
     }
 
     m_IsRunning = false;
+    m_HasConnection = false;
     SAFE_CLOSE(m_ClientSocket);
 }

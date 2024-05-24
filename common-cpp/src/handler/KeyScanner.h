@@ -26,7 +26,7 @@ private:
     std::thread m_ScanThread{};
     bool m_IsRunning{};
 
-    std::map<int, bool> m_KeyMap;
+    std::vector<std::map<int, bool>> m_KeyMaps;
 #endif
 };
 

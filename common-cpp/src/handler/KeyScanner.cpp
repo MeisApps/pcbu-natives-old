@@ -26,9 +26,11 @@ bool KeyScanner::GetKeyState(int key) {
     return GetAsyncKeyState(key) < 0;
 #endif
 #ifdef LINUX
-    if (!m_KeyMap.count(key))
-        return false;
-    return m_KeyMap[key];
+    for(auto keyMap : m_KeyMaps) {
+        if(keyMap.count(key) && keyMap[key])
+            return true;
+    }
+    return false;
 #endif
 #ifdef APPLE
     unsigned char keyMap[16];
@@ -46,7 +48,7 @@ std::map<int, bool> KeyScanner::GetAllKeys() {
     return map;
 #endif
 #ifdef LINUX
-    return m_KeyMap;
+    return m_KeyMaps[0]; // ToDo
 #endif
 #ifdef APPLE
     auto map = std::map<int, bool>();
@@ -85,27 +87,24 @@ void KeyScanner::ScanThread() {
         int kbd = open(keyboard.c_str(), O_RDONLY);
         if(kbd == -1)
             continue;
-
         int flags = fcntl(kbd, F_GETFL, 0);
         fcntl(kbd, F_SETFL, flags | O_NONBLOCK);
-
         kbds.push_back(kbd);
     }
 
     if(kbds.empty()) {
-        Logger::writeln("Warning: No keyboards found.");
+        Logger::WriteLn("Warning: No keyboards found.");
         return;
     }
 
     while (m_IsRunning) {
-        m_KeyMap.clear();
+        int idx{};
         for(auto kbd : kbds) {
             input_event ie{};
-            if(read(kbd, &ie, sizeof(ie)) > 0) {
-                m_KeyMap[ie.code] |= ie.value != 0;
-            }
+            if(read(kbd, &ie, sizeof(ie)) == sizeof(ie))
+                m_KeyMaps[idx][ie.code] = ie.value != 0;
+            idx++;
         }
-
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -117,7 +116,7 @@ void KeyScanner::ScanThread() {
 std::vector<std::string> KeyScanner::GetKeyboards() {
     auto keyboards = std::vector<std::string>();
     for (const auto & entry : fs::directory_iterator("/dev/input/by-path/")) {
-        if(Utils::StringEndsWith(entry.path().filename().string(), "event-kbd"))
+        if(Utils::StringEndsWith(entry.path().filename().string(), "0-event-kbd"))
             keyboards.push_back(entry.path().string());
     }
     return keyboards;
