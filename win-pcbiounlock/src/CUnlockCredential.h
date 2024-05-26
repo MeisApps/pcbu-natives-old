@@ -131,6 +131,6 @@ public:
     bool                                    _fIsLocalUser;                                  // If the cred prov is assosiating with a local user tile
     CSampleProvider *_pCredentialProvider{};
     CUnlockListener *_pUnlockListener{};
-    UnlockResult _unlockResult;
+    UnlockResult _unlockResult{};
     bool _isSelected{};
 };

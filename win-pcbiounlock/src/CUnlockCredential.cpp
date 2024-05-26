@@ -24,6 +24,7 @@ CUnlockCredential::CUnlockCredential():
     _fChecked(false),
     _fShowControls(false),
     _dwComboIndex(0),
+    _cpus(CPUS_INVALID),
     _unlockResult(UnlockState::UNKNOWN)
 {
     DllAddRef();
@@ -171,7 +172,10 @@ HRESULT CUnlockCredential::UnAdvise()
 HRESULT CUnlockCredential::SetSelected(_Out_ BOOL *pbAutoLogon)
 {
     _isSelected = true;
-    _pUnlockListener->Start();
+    if(_pUnlockListener != nullptr)
+    {
+        _pUnlockListener->Start();
+    }
     *pbAutoLogon = _unlockResult.state == UnlockState::SUCCESS;
     return S_OK;
 }
@@ -182,7 +186,10 @@ HRESULT CUnlockCredential::SetSelected(_Out_ BOOL *pbAutoLogon)
 HRESULT CUnlockCredential::SetDeselected()
 {
     _isSelected = false;
-    _pUnlockListener->Stop();
+    if(_pUnlockListener != nullptr)
+    {
+        _pUnlockListener->Stop();
+    }
     HRESULT hr = S_OK;
     if (_rgFieldStrings[SFI_PASSWORD])
     {

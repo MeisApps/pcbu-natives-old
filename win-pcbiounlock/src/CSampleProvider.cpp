@@ -74,7 +74,6 @@ HRESULT CSampleProvider::SetUsageScenario(
         hr = E_INVALIDARG;
         break;
     }
-
     return hr;
 }
 
@@ -148,11 +147,10 @@ HRESULT CSampleProvider::GetFieldDescriptorAt(
     _Outptr_result_nullonfailure_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR **ppcpfd)
 {
     HRESULT hr;
-    *ppcpfd = nullptr;
-
     // Verify dwIndex is a valid field.
     if ((dwIndex < SFI_NUM_FIELDS) && ppcpfd)
     {
+        *ppcpfd = nullptr;
         hr = FieldDescriptorCoAllocCopy(s_rgCredProvFieldDescriptors[dwIndex], ppcpfd);
     }
     else
@@ -176,6 +174,13 @@ HRESULT CSampleProvider::GetCredentialCount(
     _Out_ BOOL *pbAutoLogonWithDefault)
 {
     *pbAutoLogonWithDefault = FALSE;
+    if (_fRecreateEnumeratedCredentials)
+    {
+        _fRecreateEnumeratedCredentials = false;
+        _ReleaseEnumeratedCredentials();
+        _CreateEnumeratedCredentials();
+    }
+
     int idx{};
     for(const auto cred : _pCredentials)
     {
@@ -185,13 +190,6 @@ HRESULT CSampleProvider::GetCredentialCount(
             *pbAutoLogonWithDefault = TRUE;
         }
         idx++;
-    }
-
-    if (_fRecreateEnumeratedCredentials)
-    {
-        _fRecreateEnumeratedCredentials = false;
-        _ReleaseEnumeratedCredentials();
-        _CreateEnumeratedCredentials();
     }
 
     *pdwCount = static_cast<DWORD>(_pCredentials.size());
@@ -257,7 +255,7 @@ void CSampleProvider::_ReleaseEnumeratedCredentials()
 
 HRESULT CSampleProvider::_EnumerateCredentials()
 {
-    HRESULT hr = E_UNEXPECTED;
+    HRESULT hr = S_OK;
     if (_pCredProviderUserArray != nullptr)
     {
         DWORD dwUserCount;

@@ -5,7 +5,7 @@
 #include <fstream>
 #include <filesystem>
 
-#include "spdlog/spdlog.h"
+#include <spdlog/fmt/fmt.h>
 #include "utils/Utils.h"
 
 #ifdef _WIN32
