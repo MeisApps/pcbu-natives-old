@@ -91,9 +91,10 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     cv.wait(lock, [&] {
         return future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready || completed.load() == numServers;
     });
+    auto result = future.get();
+    Logger::WriteLn("Final state: {}", (int)result.state);
 
     // Cleanup
-    auto result = future.get();
     for (auto& thread : threads) {
         if (thread.joinable())
             thread.join();
@@ -142,6 +143,7 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::share
     keyScanner.Stop();
     m_PrintMessage(UnlockStateUtils::ToString(state));
 
+    Logger::WriteLn("Server state: {}", (int)state);
     auto result = UnlockResult();
     result.state = state;
     result.device = server->GetDevice();
