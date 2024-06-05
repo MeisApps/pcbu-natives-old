@@ -16,7 +16,9 @@ void Logger::Init() {
         auto fileLogger = std::make_shared<spdlog::logger>("file_logger", fileSink);
         fileLogger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] %v");
         spdlog::set_default_logger(fileLogger);
-        //spdlog::flush_on(spdlog::level::info);
+#ifdef _DEBUG
+        spdlog::flush_on(spdlog::level::info);
+#endif
         WriteLn("Module Init");
     } catch(const std::exception& ex) {
         PrintLn("Error initializing logger: {}", ex.what());

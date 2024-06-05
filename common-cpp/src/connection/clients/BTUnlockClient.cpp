@@ -113,7 +113,7 @@ void BTUnlockClient::WritePacket(const std::vector<uint8_t>& data) const {
     }
     bytesWritten = 0;
     while (bytesWritten < data.size()) {
-        int result = (int)write(m_ClientSocket, reinterpret_cast<const char*>(data.data()) + bytesWritten, data.size() - bytesWritten);
+        int result = (int)write(m_ClientSocket, reinterpret_cast<const char*>(data.data()) + bytesWritten, (int)data.size() - bytesWritten);
         if (result <= 0) {
             Logger::WriteLn("Writing data failed. (Len={})", packetSize);
             return;

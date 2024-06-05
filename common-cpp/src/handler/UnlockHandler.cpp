@@ -74,8 +74,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
 
                 std::lock_guard l(mutex);
                 cv.notify_one();
-            }
-            if(completed.load() == numServers) {
+            } else if(completed.load() == numServers) {
                 if(currentState.load() != UnlockState::SUCCESS) {
                     promise.set_value(serverResult);
                     currentState.store(serverResult.state);
@@ -90,7 +89,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     // Wait
     std::unique_lock lock(mutex);
     cv.wait(lock, [&] {
-        return future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready || completed.load() == numServers;
+        return future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready || completed.load() == numServers;
     });
 
     // Cleanup
@@ -131,7 +130,7 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::share
             state = UnlockState::CANCELED;
             break;
         }
-        if(future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready
+        if(future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready
             || (isRunning != nullptr && !isRunning->load())) {
             state = UnlockState::CANCELED;
             break;

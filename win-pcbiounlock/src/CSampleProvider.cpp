@@ -319,6 +319,10 @@ void CSampleProvider::UpdateCredsStatus() const
     {
         _pCredProvEvents->CredentialsChanged(_upAdviseContext);
     }
+    else
+    {
+        Logger::WriteLn("Failed to update credential provider.");
+    }
 }
 
 // Boilerplate code to create our provider.
