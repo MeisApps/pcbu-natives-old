@@ -112,5 +112,4 @@ void CUnlockListener::ListenThread()
     m_HasResponse = true;
     m_Credential->SetUnlockData(result);
     m_CredentialProvider->UpdateCredsStatus();
-    m_IsRunning = false;
 }
