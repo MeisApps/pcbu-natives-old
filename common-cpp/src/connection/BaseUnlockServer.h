@@ -1,6 +1,7 @@
 #ifndef PAM_PCBIOUNLOCK_BASEUNLOCKSERVER_H
 #define PAM_PCBIOUNLOCK_BASEUNLOCKSERVER_H
 
+#include <atomic>
 #include <string>
 #include <thread>
 #include <utility>

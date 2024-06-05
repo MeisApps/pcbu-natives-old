@@ -58,17 +58,29 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     // Start servers
     std::vector<std::thread> threads{};
     std::promise<UnlockResult> promise{};
+    std::atomic currentState(0);
     std::atomic completed(0);
     std::mutex mutex{};
     std::condition_variable cv{};
     std::shared_future future(promise.get_future());
     auto numServers = servers.size();
     for (auto server : servers) {
-        threads.emplace_back([this, server, numServers, future, isRunning, &promise, &completed, &cv, &mutex]() {
+        threads.emplace_back([this, server, numServers, future, isRunning, &promise, &currentState, &completed, &cv, &mutex]() {
             auto serverResult = RunServer(server, future, isRunning);
             completed.fetch_add(1);
-            if(serverResult.state == UnlockState::SUCCESS || completed.load() == numServers) {
+            if(serverResult.state == UnlockState::SUCCESS) {
                 promise.set_value(serverResult);
+                currentState.store(serverResult.state);
+
+                std::lock_guard l(mutex);
+                cv.notify_one();
+            }
+            if(completed.load() == numServers) {
+                if(currentState.load() != UnlockState::SUCCESS) {
+                    promise.set_value(serverResult);
+                    currentState.store(serverResult.state);
+                }
+
                 std::lock_guard l(mutex);
                 cv.notify_one();
             }

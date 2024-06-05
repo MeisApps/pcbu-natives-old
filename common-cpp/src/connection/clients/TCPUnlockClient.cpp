@@ -94,8 +94,24 @@ std::vector<uint8_t> TCPUnlockClient::ReadPacket() const {
 
 void TCPUnlockClient::WritePacket(const std::vector<uint8_t>& data) const {
     uint16_t packetSize = htons(static_cast<uint16_t>(data.size()));
-    write(m_ClientSocket, reinterpret_cast<const char*>(&packetSize), sizeof(packetSize));
-    write(m_ClientSocket, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()));
+    int bytesWritten = 0;
+    while (bytesWritten < sizeof(uint16_t)) {
+        int result = (int)write(m_ClientSocket, reinterpret_cast<const char*>(&packetSize) + bytesWritten, sizeof(uint16_t) - bytesWritten);
+        if (result <= 0) {
+            Logger::WriteLn("Writing data len failed.");
+            return;
+        }
+        bytesWritten += result;
+    }
+    bytesWritten = 0;
+    while (bytesWritten < data.size()) {
+        int result = (int)write(m_ClientSocket, reinterpret_cast<const char*>(data.data()) + bytesWritten, data.size() - bytesWritten);
+        if (result <= 0) {
+            Logger::WriteLn("Writing data failed. (Len={})", packetSize);
+            return;
+        }
+        bytesWritten += result;
+    }
 }
 
 void TCPUnlockClient::ConnectThread() {
