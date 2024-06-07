@@ -57,29 +57,20 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
 
     // Start servers
     std::vector<std::thread> threads{};
-    std::promise<UnlockResult> promise{};
-    std::atomic currentState(0);
+    AtomicUnlockResult currentResult{};
     std::atomic completed(0);
     std::mutex mutex{};
     std::condition_variable cv{};
-    std::shared_future future(promise.get_future());
     auto numServers = servers.size();
     for (auto server : servers) {
-        threads.emplace_back([this, server, numServers, future, isRunning, &promise, &currentState, &completed, &cv, &mutex]() {
-            auto serverResult = RunServer(server, future, isRunning);
+        threads.emplace_back([this, server, numServers, isRunning, &currentResult, &completed, &cv, &mutex]() {
+            auto serverResult = RunServer(server, &currentResult, isRunning);
             completed.fetch_add(1);
-            if(serverResult.state == UnlockState::SUCCESS) {
-                promise.set_value(serverResult);
-                currentState.store(serverResult.state);
-
-                std::lock_guard l(mutex);
-                cv.notify_one();
-            } else if(completed.load() == numServers) {
-                if(currentState.load() != UnlockState::SUCCESS) {
-                    promise.set_value(serverResult);
-                    currentState.store(serverResult.state);
-                }
-
+            if(serverResult.state == UnlockState::SUCCESS)
+                currentResult.store(serverResult);
+            if(completed.load() == numServers) {
+                if(currentResult.load().state != UnlockState::SUCCESS)
+                    currentResult.store(serverResult);
                 std::lock_guard l(mutex);
                 cv.notify_one();
             }
@@ -89,9 +80,9 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     // Wait
     std::unique_lock lock(mutex);
     cv.wait(lock, [&] {
-        return future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready || completed.load() == numServers;
+        return completed.load() == numServers;
     });
-    auto result = future.get();
+    auto result = currentResult.load();
     Logger::WriteLn("Final state: {}", (int)result.state);
 
     // Cleanup
@@ -104,7 +95,7 @@ UnlockResult UnlockHandler::GetResult(const std::string& authUser, const std::st
     return result;
 }
 
-UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::shared_future<UnlockResult>& future, std::atomic<bool> *isRunning) {
+UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, AtomicUnlockResult *currentResult, std::atomic<bool> *isRunning) {
     if(!server->Start()) {
         auto errorMsg = I18n::Get("error_start_handler");
         Logger::WriteLn(errorMsg);
@@ -119,6 +110,7 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::share
     auto timeoutMs = PACKET_TIMEOUT;
     auto state = UnlockState::UNKNOWN;
     auto startTime = Utils::GetCurrentTimeMillis();
+    auto isFutureCancel = false;
     while (true) {
         state = server->PollResult();
         if(state != UnlockState::UNKNOWN)
@@ -131,9 +123,9 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::share
             state = UnlockState::CANCELED;
             break;
         }
-        if(future.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready
-            || (isRunning != nullptr && !isRunning->load())) {
+        if(currentResult->load().state == UnlockState::SUCCESS || (isRunning != nullptr && !isRunning->load())) {
             state = UnlockState::CANCELED;
+            isFutureCancel = true;
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -141,7 +133,8 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, const std::share
 
     server->Stop();
     keyScanner.Stop();
-    m_PrintMessage(UnlockStateUtils::ToString(state));
+    if(!isFutureCancel)
+        m_PrintMessage(UnlockStateUtils::ToString(state));
 
     Logger::WriteLn("Server state: {}", (int)state);
     auto result = UnlockResult();

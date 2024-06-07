@@ -20,17 +20,30 @@ struct UnlockResult {
     std::string password{};
 };
 
+class AtomicUnlockResult {
+public:
+    UnlockResult load() const {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        return m_Data;
+    }
+    void store(const UnlockResult& data) {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        m_Data = data;
+    }
+
+private:
+    UnlockResult m_Data{};
+    mutable std::mutex m_Mutex{};
+};
+
 class UnlockHandler {
 public:
     explicit UnlockHandler(const std::function<void (std::string)>& printMessage);
     UnlockResult GetResult(const std::string& authUser, const std::string& authProgram, std::atomic<bool> *isRunning = nullptr);
 
-    const UnlockResult RESULT_ERROR = UnlockResult(UnlockState::UNKNOWN);
 private:
-    UnlockResult RunServer(BaseUnlockServer *server, const std::shared_future<UnlockResult>& future, std::atomic<bool> *isRunning);
-
-    std::function<void (std::string)> m_PrintMessage;
+    UnlockResult RunServer(BaseUnlockServer *server, AtomicUnlockResult *currentResult, std::atomic<bool> *isRunning);
+    std::function<void (std::string)> m_PrintMessage{};
 };
-
 
 #endif //PAM_PCBIOUNLOCK_UNLOCKHANDLER_H
