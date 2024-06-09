@@ -103,15 +103,26 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, AtomicUnlockResu
         return UnlockResult(UnlockState::START_ERROR);
     }
 
-    m_PrintMessage(I18n::Get("wait_unlock"));
+    m_PrintMessage(I18n::Get("wait_phone_connect"));
     auto keyScanner = KeyScanner();
     keyScanner.Start();
 
     auto timeoutMs = PACKET_TIMEOUT;
     auto state = UnlockState::UNKNOWN;
     auto startTime = Utils::GetCurrentTimeMillis();
+    auto isWaitingForConnection = true;
     auto isFutureCancel = false;
     while (true) {
+        if(currentResult->load().state == UnlockState::SUCCESS || (isRunning != nullptr && !isRunning->load())) {
+            state = UnlockState::CANCELED;
+            isFutureCancel = true;
+            break;
+        }
+
+        if(server->HasClient() && isWaitingForConnection) {
+            m_PrintMessage(I18n::Get("wait_phone_unlock"));
+            isWaitingForConnection = false;
+        }
         state = server->PollResult();
         if(state != UnlockState::UNKNOWN)
             break;
@@ -121,11 +132,6 @@ UnlockResult UnlockHandler::RunServer(BaseUnlockServer *server, AtomicUnlockResu
         }
         if(keyScanner.GetKeyState(KEY_LEFTCTRL) && keyScanner.GetKeyState(KEY_LEFTALT)) {
             state = UnlockState::CANCELED;
-            break;
-        }
-        if(currentResult->load().state == UnlockState::SUCCESS || (isRunning != nullptr && !isRunning->load())) {
-            state = UnlockState::CANCELED;
-            isFutureCancel = true;
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
