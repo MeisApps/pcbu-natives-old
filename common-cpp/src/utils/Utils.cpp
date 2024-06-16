@@ -104,6 +104,16 @@ std::string Utils::ToHexString(const uint8_t *data, size_t data_len) {
     return result;
 }
 
+bool Utils::StringContains(const std::string &str, const std::string &val) {
+    return str.find(val) != std::string::npos;
+}
+
+std::string Utils::ToLowerString(std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    return str;
+}
+
 #ifdef _WIN32
 std::wstring Utils::StringToWideString(const std::string& string) {
     if (string.empty())

@@ -1,5 +1,6 @@
 #include "api.h"
 #include "../utils/Utils.h"
+#include "Logger.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -12,16 +13,22 @@
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
 #else
+#include <unistd.h>
 #include <ifaddrs.h>
-#include <netinet/in.h>
-#include <net/if.h>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <netdb.h>
 #ifdef LINUX
 #include <netpacket/packet.h>
 #endif
 #endif
 
 extern "C" {
+    struct NetworkInterface {
+        std::string ifName{};
+        std::string ipAddress{};
+        std::string macAddress{};
+    };
     std::regex local_v4_regex(R"((^10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$)|(^172\.1[6-9]{1}[0-9]{0,1}\.[0-9]{1,3}\.[0-9]{1,3}$)|(^172\.2[0-9]{1}[0-9]{0,1}\.[0-9]{1,3}\.[0-9]{1,3}$)|(^172\.3[0-1]{1}[0-9]{0,1}\.[0-9]{1,3}\.[0-9]{1,3}$)|(^192\.168\.[0-9]{1,3}\.[0-9]{1,3}$))");
 
     API void api_free(void *ptr) {
@@ -31,134 +38,126 @@ extern "C" {
     }
 
     API IpAndMac *get_local_ip_and_mac() {
-    #ifdef _WIN32
-        IP_ADAPTER_ADDRESSES* adapter_addresses(nullptr);
-        IP_ADAPTER_ADDRESSES* adapter(nullptr);
-        std::vector<std::wstring> filterAdapterNames = { L"vEthernet (WSL", L"VMware Network Adapter", L"VirtualBox" };
+        std::vector<NetworkInterface> result{};
+#ifdef WINDOWS
+        ULONG bufferSize = 0;
+        GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, nullptr, nullptr, &bufferSize);
+        std::vector<BYTE> buffer(bufferSize);
+        auto adapterAddresses = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());
+        if (GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, nullptr, adapterAddresses, &bufferSize))
+            return {};
 
-        DWORD adapter_addresses_buffer_size = 16 * 1024;
-        for (int attempts = 0; attempts != 3; ++attempts) {
-            adapter_addresses = static_cast<IP_ADAPTER_ADDRESSES *>(malloc(adapter_addresses_buffer_size));
-            if (adapter_addresses == nullptr)
-                return nullptr;
-
-            DWORD error = ::GetAdaptersAddresses(
-                AF_UNSPEC,
-                GAA_FLAG_SKIP_ANYCAST |
-                GAA_FLAG_SKIP_MULTICAST |
-                GAA_FLAG_SKIP_DNS_SERVER |
-                GAA_FLAG_SKIP_FRIENDLY_NAME,
-                nullptr,
-                adapter_addresses,
-                &adapter_addresses_buffer_size);
-            if (ERROR_SUCCESS == error) {
-                break;
-            } else if (ERROR_BUFFER_OVERFLOW == error) {
-                free(adapter_addresses);
-                adapter_addresses = nullptr;
-                continue;
-            } else {
-                free(adapter_addresses);
-                adapter_addresses = nullptr;
-                return nullptr;
-            }
-        }
-
-        for (adapter = adapter_addresses; nullptr != adapter; adapter = adapter->Next) {
-            if (IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
+        for (PIP_ADAPTER_ADDRESSES adapter = adapterAddresses; adapter; adapter = adapter->Next) {
+            if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
                 continue;
 
+            char macBuffer[18]{};
+            snprintf(macBuffer, sizeof(macBuffer),
+                     "%02X:%02X:%02X:%02X:%02X:%02X",
+                     adapter->PhysicalAddress[0], adapter->PhysicalAddress[1],
+                     adapter->PhysicalAddress[2], adapter->PhysicalAddress[3],
+                     adapter->PhysicalAddress[4], adapter->PhysicalAddress[5]);
             auto ifName = std::wstring(adapter->FriendlyName);
-            for (const auto& filterStart : filterAdapterNames)
-                if (Utils::StringStartsWith(ifName, filterStart))
-                    goto adapterEnd;
+            auto macAddr = std::string(macBuffer);
 
-            for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; nullptr != address; address = address->Next) {
-                auto family = address->Address.lpSockaddr->sa_family;
-                if (AF_INET == family) { // IPv4
-                    auto ipv4 = reinterpret_cast<SOCKADDR_IN *>(address->Address.lpSockaddr);
-                    char str_buffer[INET_ADDRSTRLEN] = { 0 };
-                    inet_ntop(AF_INET, &(ipv4->sin_addr), str_buffer, INET_ADDRSTRLEN);
-
-                    auto ifAddr = std::string(str_buffer);
-                    if (!std::regex_match(ifAddr, local_v4_regex))
-                        continue;
-
-                    auto data = static_cast<IpAndMac *>(malloc(sizeof(IpAndMac)));
-                    if (data == nullptr)
-                        goto end;
-                    strncpy_s(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
-                    snprintf(data->macAddr, sizeof(data->macAddr),
-                        "%02X:%02X:%02X:%02X:%02X:%02X",
-                        adapter->PhysicalAddress[0], adapter->PhysicalAddress[1],
-                        adapter->PhysicalAddress[2], adapter->PhysicalAddress[3],
-                        adapter->PhysicalAddress[4], adapter->PhysicalAddress[5]);
-
-                    free(adapter_addresses);
-                    adapter_addresses = nullptr;
-                    return data;
-                }
+            auto netIf = NetworkInterface();
+            netIf.ifName = StringUtils::FromWideString(ifName);
+            netIf.macAddress = macAddr;
+            for (PIP_ADAPTER_UNICAST_ADDRESS unicast = adapter->FirstUnicastAddress; unicast; unicast = unicast->Next) {
+                auto family = unicast->Address.lpSockaddr->sa_family;
+                if (family != AF_INET)
+                    continue;
+                auto ipv4 = reinterpret_cast<SOCKADDR_IN *>(unicast->Address.lpSockaddr);
+                char strBuffer[INET_ADDRSTRLEN]{};
+                inet_ntop(AF_INET, &(ipv4->sin_addr), strBuffer, INET_ADDRSTRLEN);
+                auto ifAddr = std::string(strBuffer);
+                netIf.ipAddress = ifAddr;
             }
-            adapterEnd:
-            continue;
+            if(!netIf.ipAddress.empty())
+                result.emplace_back(netIf);
+        }
+#elif defined(LINUX) || defined(APPLE)
+        struct ifaddrs *ifaddr{};
+        if(getifaddrs(&ifaddr))
+            return {};
+
+        std::map<std::string, NetworkInterface> ifMap{};
+        for(auto ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+            if(ifa->ifa_addr == nullptr || ifa->ifa_flags & IFF_LOOPBACK)
+                continue;
+            int family = ifa->ifa_addr->sa_family;
+            if(family == AF_INET || family == AF_PACKET) {
+                char addr[NI_MAXHOST]{};
+                auto res = getnameinfo(ifa->ifa_addr, (family == AF_INET) ?
+                                                      sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+                                       addr, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST);
+                if(res && family != AF_PACKET) {
+                    printf("getnameinfo() failed: %s\n", gai_strerror(res));
+                    continue;
+                }
+
+                auto ifName = ifa->ifa_name;
+                if(ifMap.find(ifName) == ifMap.end()) {
+                    ifMap[ifName] = NetworkInterface();
+                    ifMap[ifName].ifName = ifName;
+                }
+                if(family == AF_INET)
+                    ifMap[ifName].ipAddress = addr;
+                if(family == AF_PACKET) {
+#ifdef LINUX
+                    auto sll = reinterpret_cast<struct sockaddr_ll*>(ifa->ifa_addr);
+                    snprintf(addr, sizeof(addr),
+                             "%02X:%02X:%02X:%02X:%02X:%02X",
+                             sll->sll_addr[0], sll->sll_addr[1],
+                             sll->sll_addr[2], sll->sll_addr[3],
+                             sll->sll_addr[4], sll->sll_addr[5]);
+#endif
+                    ifMap[ifName].macAddress = addr;
+                }
+
+            }
         }
 
-        end:
-        free(adapter_addresses);
-        adapter_addresses = nullptr;
-        return nullptr;
-    #else
-        struct ifaddrs* ifAddrStruct = nullptr;
-        getifaddrs(&ifAddrStruct);
-
-        for (auto ifa = ifAddrStruct; ifa != nullptr; ifa = ifa->ifa_next) {
-            if (!ifa->ifa_addr || ifa->ifa_flags & IFF_LOOPBACK)
-                continue;
-
-            if (ifa->ifa_addr->sa_family == AF_INET) { // IPv4
-                void *tmpAddrPtr = &((struct sockaddr_in*)ifa->ifa_addr)->sin_addr;
-                char addressBuffer[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-
-                auto ifName = std::string(ifa->ifa_name);
-                auto ifAddr = std::string(addressBuffer);
-                if (Utils::StringStartsWith(ifName, "vir") || Utils::StringStartsWith(ifName, "ham"))
-                    continue;
-                if (!std::regex_match(ifAddr, local_v4_regex))
-                    continue;
-
-                auto data = (IpAndMac *)malloc(sizeof(IpAndMac));
-                if (data == nullptr)
-                    goto end;
-                strncpy(data->ipAddr, ifAddr.c_str(), sizeof(data->ipAddr));
-
-#ifdef LINUX
-                for (auto ifa2 = ifAddrStruct; ifa2 != nullptr; ifa2 = ifa2->ifa_next) {
-                    if (ifa2->ifa_addr && ifa2->ifa_addr->sa_family == AF_PACKET && strcmp(ifa->ifa_name, ifa2->ifa_name) == 0) {
-                        auto sll = reinterpret_cast<struct sockaddr_ll*>(ifa2->ifa_addr);
-                        snprintf(data->macAddr, sizeof(data->macAddr),
-                            "%02X:%02X:%02X:%02X:%02X:%02X",
-                            sll->sll_addr[0], sll->sll_addr[1],
-                            sll->sll_addr[2], sll->sll_addr[3],
-                            sll->sll_addr[4], sll->sll_addr[5]);
-                        break;
-                    }
-                }
-#elif APPLE
-#warning Not implemented on Apple.
+        for(const auto& pair : ifMap)
+            if(!pair.second.ipAddress.empty())
+                result.emplace_back(pair.second);
+        freeifaddrs(ifaddr);
 #endif
 
-                freeifaddrs(ifAddrStruct);
-                return data;
-            }
-            else if (ifa->ifa_addr->sa_family == AF_INET6) {} // IPv6
+        auto rankIp = [](const NetworkInterface& netIf){
+            auto rank = 0;
+            if(std::regex_match(netIf.ipAddress, local_v4_regex))
+                rank += 1000;
+            if(Utils::StringStartsWith(netIf.ipAddress, "192.168.") || Utils::StringStartsWith(netIf.ipAddress, "10."))
+                rank += 50;
+#ifdef WINDOWS
+            if(Utils::StringContains(netIf.ifName, "Bluetooth") || Utils::StringContains(netIf.ifName, "vEthernet") || Utils::StringContains(netIf.ifName, "VMware") || Utils::StringContains(netIf.ifName, "VirtualBox") || Utils::StringContains(netIf.ifName, "Docker"))
+            rank -= 100;
+#else
+            if(Utils::StringStartsWith(netIf.ifName, "vir") || Utils::StringStartsWith(netIf.ifName, "docker") || Utils::StringStartsWith(netIf.ifName, "ham"))
+                rank -= 100;
+#endif
+            return rank;
+        };
+        std::sort(result.begin(), result.end(), [rankIp](const NetworkInterface& a, const NetworkInterface& b) {
+            auto rankA = rankIp(a);
+            auto rankB = rankIp(b);
+            if(rankA == rankB)
+                return Utils::ToLowerString(a.ifName) < Utils::ToLowerString(b.ifName);
+            return rankA > rankB;
+        });
+        for(auto netIf : result)
+            Logger::WriteLn("Found network interface: Name={} IP={} Rank={}", netIf.ifName, netIf.ipAddress, rankIp(netIf));
+        auto data = (IpAndMac *)malloc(sizeof(IpAndMac));
+        if(data == nullptr || result.empty())
+            return nullptr;
+        auto resultIf = result[0];
+        std::memset(data, 0, sizeof(IpAndMac));
+        std::memcpy(data->ipAddr, resultIf.ipAddress.c_str(), std::min(sizeof(data->ipAddr), resultIf.ipAddress.size()));
+        if(!resultIf.macAddress.empty()) {
+            std::memcpy(data->macAddr, resultIf.macAddress.c_str(), std::min(sizeof(data->macAddr), resultIf.macAddress.size()));
         }
-
-        end:
-        if (ifAddrStruct != nullptr)
-            freeifaddrs(ifAddrStruct);
-        return nullptr;
-    #endif
+        return data;
     }
 
     API const char *crypt_shadow(char *pwd, char *salt) {
