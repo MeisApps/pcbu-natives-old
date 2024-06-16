@@ -40,7 +40,7 @@ extern "C" {
 
     API IpAndMac *get_local_ip_and_mac() {
         std::vector<NetworkInterface> result{};
-#ifdef WINDOWS
+#ifdef _WIN32
         ULONG bufferSize = 0;
         GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, nullptr, nullptr, &bufferSize);
         std::vector<BYTE> buffer(bufferSize);
@@ -62,7 +62,7 @@ extern "C" {
             auto macAddr = std::string(macBuffer);
 
             auto netIf = NetworkInterface();
-            netIf.ifName = StringUtils::FromWideString(ifName);
+            netIf.ifName = Utils::WideStringToString(ifName);
             netIf.macAddress = macAddr;
             for (PIP_ADAPTER_UNICAST_ADDRESS unicast = adapter->FirstUnicastAddress; unicast; unicast = unicast->Next) {
                 auto family = unicast->Address.lpSockaddr->sa_family;
@@ -131,7 +131,7 @@ extern "C" {
                 rank += 1000;
             if(Utils::StringStartsWith(netIf.ipAddress, "192.168.") || Utils::StringStartsWith(netIf.ipAddress, "10."))
                 rank += 50;
-#ifdef WINDOWS
+#ifdef _WIN32
             if(Utils::StringContains(netIf.ifName, "Bluetooth") || Utils::StringContains(netIf.ifName, "vEthernet") || Utils::StringContains(netIf.ifName, "VMware") || Utils::StringContains(netIf.ifName, "VirtualBox") || Utils::StringContains(netIf.ifName, "Docker"))
             rank -= 100;
 #else
