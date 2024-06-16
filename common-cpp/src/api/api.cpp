@@ -12,6 +12,7 @@
 #include <ws2ipdef.h>
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
+#undef min
 #else
 #include <unistd.h>
 #include <ifaddrs.h>
